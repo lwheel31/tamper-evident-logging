@@ -1,0 +1,21 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tamper-evident-logging"
+version = "0.1.0"
+description = "ITIS 6200 — Comparing tamper-evident logging mechanisms"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+authors = [
+    {name = "Lucas Wheeler"},
+    {name = "Ashton"},
+    {name = "Julian"},
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.0"]
+
+[project.scripts]
+tamperlog = "tamperlog.cli:main"

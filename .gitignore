@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project artifacts
+logs_output/
+*.log
+.pytest_cache/
+
+# Secrets and trusted state - NEVER commit (public repo)
+*.key
+keys/
+trusted/
+checkpoints_store/
+*_cp_*.json
