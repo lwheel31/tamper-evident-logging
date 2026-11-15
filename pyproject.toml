@@ -19,3 +19,8 @@ dev = ["pytest>=7.0"]
 
 [project.scripts]
 tamperlog = "tamperlog.cli:main"
+
+[tool.pytest.ini_options]
+# Lets pytest find src/tamperlog without installing the package first.
+pythonpath = ["src"]
+testpaths = ["tests"]
