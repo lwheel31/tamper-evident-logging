@@ -76,7 +76,7 @@ class HMACCheckpointLogger:
     Owner: Lucas (append), Ashton (checkpoint creation via checkpoints module)
     """
 
-    def __init__(self, log_id: str, path: Path, key_id: str, checkpoint_interval: int = 10) -> None:
+    def __init__(self, log_id: str, path: Path, key_id: str, checkpoint_interval: int = 1) -> None:
         self.log_id = log_id
         self.path = path
         self.key_id = key_id
@@ -87,6 +87,7 @@ class HMACCheckpointLogger:
     def append(self, event_type: str, details: dict[str, Any]) -> LogRecord:
         """Create an HMAC-chained record, emitting checkpoints at intervals.
 
+        Default interval is 1 (checkpoint every committed record), per the blueprint.
         TODO (Lucas + Ashton): After every checkpoint_interval records,
         call checkpoints.create_checkpoint() to store a trusted anchor.
         """
