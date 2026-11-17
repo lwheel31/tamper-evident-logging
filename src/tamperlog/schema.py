@@ -9,7 +9,8 @@ Record format (JSONL, one JSON object per line):
     event_type: str  — category such as "LOGIN", "FILE_ACCESS", "ADMIN_CMD"
     details:   dict  — arbitrary event payload
     key_id:    str | None — identifier of the HMAC key used (None for plaintext/hash modes)
-    prev_tag:  str | None — tag of the previous record (None for seq 0)
+    prev_tag:  str | None — tag of the previous record. First record uses the
+                           public GENESIS_TAG (64 zeros). None in Mode A.
     tag:       str | None — computed hash/HMAC for this record (None for plaintext mode)
 
 The tag is computed over all fields EXCEPT tag itself.
