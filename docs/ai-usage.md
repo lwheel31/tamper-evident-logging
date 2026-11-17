@@ -216,3 +216,142 @@ supported Python version. Expected security limits remain: plaintext edits,
 publicly rehashed SHA-256 rewrites, and valid truncation can pass; neither mode
 proves authenticity or completeness. No commit or push performed; human
 explanation and approval remain pending.
+
+## 2026-11-17 — Sprint 02: HMAC and trusted checkpoint verification
+
+**Tool:** OpenAI Codex. **Operator:** Julian Roberts.
+
+**Prompt summary:** Verify Sprint 01 continuity; implement Mode C/D verification
+within Julian's verifier/tests/AI-log files, using mocked security-store
+interfaces while Ashton's modules remain unimplemented. Preserve interfaces
+unless explicitly approved, defend against unsafe identifier lookups and log
+substitution, enforce checkpoint-per-record coverage, test regressions/attacks,
+run the full suite, review adversarially, and stop without committing/pushing.
+
+**Starting state verified:** Clean `julian/testing` at
+`2945b11b7dcd139b6caf5451ce0ae2739c8ce53d`, matching both its tracking reference
+and a live read-only remote lookup. Baseline reproduced: **213 passed,
+14 skipped**. Reviewed verifier, loggers, schema, serialization, security module
+stubs, interfaces, architecture/threat model, existing tests, and prior AI log.
+
+**Approved interface change:** Before implementing Mode D, Codex proposed
+`verify_hmac_checkpoint(path, key_store, checkpoint_store, *, expected_log_id: str)`.
+Julian explicitly answered **"Approve required expected_log_id parameter"**.
+It is required and keyword-only; there is no fallback to a stored record's
+identity or filename. The caller must obtain it independently from trusted
+configuration. Other public function signatures and `VerificationResult`
+fields are unchanged. `docs/interfaces.md` is outside this sprint's edit scope;
+the approved signature and its rationale are recorded here and in the code.
+
+**AI-generated work:** Mode C/D implementation, tests, and this entry. No
+independently student-written code is claimed. No changes to teammates' modules,
+dependencies, attack implementations, or other files. Human explanation and
+final approval remain pending.
+
+### Security decisions and result semantics
+
+- Reuse the existing strict JSONL/schema/UTC validation, genesis value,
+  consecutive sequences, consistent identity, canonical serialization, and
+  previous-tag checks. Modes B/C/D use canonical signed data; Mode A still
+  accepts finite JSON floats. Recompute HMAC-SHA256 over each full canonical
+  record excluding `tag`, loading that record's historical key ID. A rotation
+  changes the key, not the chain's previous tag. All tag comparisons use
+  `hmac.compare_digest`.
+- Validate any identifier used for a trusted-store lookup before the lookup:
+  1-128 ASCII letters/digits/underscores/hyphens, beginning alphanumeric. Reject
+  paths, dots, separators, glob syntax, nulls, whitespace, Unicode aliases,
+  and reserved Windows device names (CON/PRN/AUX/NUL/COM1-9/LPT1-9).
+  The same profile applies to Mode D's expected identity. This intentionally
+  narrows the stubs' generic string inputs and must be aligned with teammates'
+  identifier generation before integration. Ordinary Mode C log identities
+  are not used for lookup and retain their existing string validation.
+- Require loaded keys to be `bytes` of at least 32 bytes, matching the logger's
+  minimum key length. Never substitute an empty/default key. Missing, malformed,
+  unreadable, or unimplemented trusted dependencies raise `RuntimeError` with
+  a `cannot verify` message. Dependency exception text is suppressed in these
+  expected failure paths. A wrong but well-formed key produces an invalid MAC;
+  this does not establish whether the log or trusted key configuration is wrong.
+- Mode D selects checkpoints only by the independent expected identity, requires
+  a nonempty `list[Checkpoint]` with that identity, valid tags, and exact ordered
+  integer sequences 0..N-1, then checks every authenticated record against its
+  corresponding checkpoint. Duplicate/out-of-order/sparse checkpoints fail
+  closed. Only `checkpoint_interval=1` is supported even though Lucas's logger
+  exposes other intervals. No trusted checkpoint is silently skipped.
+- Missing checkpoint data, including a missing final checkpoint for an existing
+  record, is `cannot verify`. A validly formatted checkpoint whose tag disagrees
+  with an authenticated record returns `valid=False`. An absent record that has
+  a trusted checkpoint returns `valid=False` with `first_bad_seq` equal to the
+  first missing sequence. An empty or deleted Mode D log also fails when anchors
+  exist. With no anchors at all, even an empty log cannot pass: the current
+  checkpoint format has no trusted representation of an intentionally empty log.
+- Modes A/B/C retain their existing file-access error behavior. In Mode D, a
+  missing file returns invalid after trusted anchors have been loaded; other
+  file-access errors propagate. `total_records` counts examined lines, including
+  a failing line, but does not invent a count for absent records. Mode D reports
+  the independently expected identity in `result.log_id`.
+- Mode C authenticates record contents under the trusted key assumptions but
+  does not establish the intended log identity or completeness. Valid prefixes,
+  including empty existing files, can pass. Mode D binds records and coverage
+  to the supplied identity and trusted checkpoint snapshot; neither mode detects
+  events never logged. HMAC is not a digital signature or nonrepudiation proof.
+
+### Tests, adversarial review, and integration boundaries
+
+Tests use real canonical serialization and real logger/verifier computation
+while mocking `keyring.load_key`, `checkpoints.load_checkpoints`, and, for the
+Mode D logger wiring test, `checkpoints.create_checkpoint`. They cover rotation,
+missing old/new historical keys, wrong/invalid/unavailable keys, unsafe IDs
+never reaching lookup, equal-key ID substitution, individual field edits,
+deletion/reordering, genesis/final linkage with a correct record MAC, failed
+public SHA-256 rehashing, Mode C truncation, Mode D truncation/removal, malformed
+trusted checkpoints, missing anchors, and identity substitution/replay. A
+hand-written nested canonical payload has the hard-coded HMAC tag
+`8b41ea2ff1d703a6e6cb77dca28a4c718d0b62a80aabae177247cb23e25edd44`, independently
+calculated with OpenSSL (`dgst -sha256 -mac HMAC`, hex key `41` repeated 32 times).
+Both C/D accept that vector and reject its altered payload. OpenSSL is used
+only to independently calculate the test fixture; it is not a test/runtime
+dependency. Existing Mode A/B tests remain regression coverage.
+
+Final adversarial review inspected the entire implementation/test diff and
+found the cross-platform reserved-device-name lookup issue, which was fixed
+with regression tests. It also identified the trusted-snapshot boundary:
+`load_checkpoints` MUST return the complete, current, stable set or raise an
+error, never silently omit an unreadable/malformed checkpoint or return a stale
+prefix. A test demonstrates that a matching log prefix plus an incomplete
+trusted prefix can pass; no independent expected count exists in this API.
+This is a dependency-contract limitation, not an attacker capability permitted
+by the approved storage-only threat model. No claim of detecting trusted-store
+rollback/compromise is made. The caller must also supply a genuinely independent
+expected identity; copying the untrusted record's identity defeats substitution
+protection.
+
+**Integration blockers:** Ashton's keyring/checkpoint persistence is still
+unimplemented. A manual check with the real stubs (no mocks) confirms Mode C
+raises `cannot verify: key 'k1' unavailable` and Mode D raises `cannot verify:
+trusted checkpoints unavailable`. Mocked tests do not validate file permissions,
+store separation, key generation/entropy/retention, symlink containment, atomic
+checkpoint persistence, complete snapshot loading, or actual end-to-end
+integration. Those remain joint integration work once the owned modules exist.
+Future callers must supply the approved expected identity from trusted
+configuration and handle dependency errors without counting them as successful
+verification or silently discarding them.
+
+Stable captured artifacts and trusted stores remain required. Resource size,
+CPU, memory, and nesting limits remain unimplemented as documented in Sprint 01.
+Only Python 3.13.3 on this macOS environment was exercised; no supported-runtime
+or OS test matrix is claimed. No remaining high/medium verifier defects were
+identified under the stated trusted-dependency contracts; these integration
+blockers and operational limits remain explicit.
+
+**Final validation:** `python3 -m pytest -q`: **305 passed, 11 skipped**
+(0.96 s), compared with the verified starting baseline of **213 passed,
+14 skipped**. All three C/D verifier placeholders have been replaced; remaining
+skips are in other pending project work. `git diff --check` passes, and only
+the three authorized files changed. No commit or push performed.
+
+**Concepts for human approval:** Explain canonical HMAC input and authenticated
+key IDs; historical-key retention versus rotation of chain links; why missing
+trusted data means "cannot verify" rather than proof of tampering; why C cannot
+detect a valid prefix; how independent expected identity plus complete trusted
+checkpoint coverage prevents substitution/truncation in D; and why mocked store
+tests cannot establish physical trust separation or real persistence behavior.

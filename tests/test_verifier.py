@@ -1,16 +1,21 @@
-"""Verifier checks and explicit demonstrations of Modes A/B security limits."""
+"""Modes A-D checks and attacks; key/checkpoint persistence is mocked."""
 
 import hashlib
+import hmac
 import json
 import sys
+from unittest.mock import Mock, call
 
 import pytest
 
+from tamperlog import checkpoints, keyring
 from tamperlog.events import generate_events
-from tamperlog.loggers import GENESIS_TAG, HashChainLogger, PlaintextLogger
+from tamperlog.loggers import (GENESIS_TAG, HashChainLogger, HMACChainLogger,
+                               HMACCheckpointLogger, PlaintextLogger)
 from tamperlog.schema import LogRecord
 from tamperlog.serialization import canonical_bytes
-from tamperlog.verifier import verify_hash_chain, verify_plaintext
+from tamperlog.verifier import (verify_hash_chain, verify_hmac_chain,
+                                verify_hmac_checkpoint, verify_plaintext)
 
 
 @pytest.fixture(params=[("A", PlaintextLogger, verify_plaintext),
@@ -409,17 +414,407 @@ def test_hash_verifier_accepts_independently_constructed_record(tmp_path, detail
     assert verify_hash_chain(path).valid is True
 
 
-@pytest.mark.skip(reason="PENDING — verifier not yet implemented")
-def test_verify_hmac_chain_valid():
-    pass
+# Security-store tests mock Ashton's interface, never his storage implementation.
+KEY_A = b"A" * 32
+KEY_B = b"B" * 32
 
 
-@pytest.mark.skip(reason="PENDING — verifier not yet implemented")
-def test_verify_hmac_missing_key_is_not_valid():
-    """A missing historical key must NOT produce valid=True."""
-    pass
+@pytest.fixture
+def hmac_case(tmp_path, monkeypatch):
+    path = tmp_path / "c.jsonl"
+    store = tmp_path / "trusted-keys"
+    keys = {"k1": KEY_A, "k2": KEY_B}
+    load = Mock(side_effect=lambda name, store_path: keys[name])
+    monkeypatch.setattr(keyring, "load_key", load)
+    logger = HMACChainLogger("run-001", path, "k1", key=KEY_A)
+    records = [logger.append(*event).__dict__.copy() for event in generate_events(5)]
+    return path, records, store, keys, load
 
 
-@pytest.mark.skip(reason="PENDING — verifier not yet implemented")
-def test_verify_hmac_checkpoint():
-    pass
+def test_valid_hmac_chain(hmac_case):
+    path, _, store, _, load = hmac_case
+    result = verify_hmac_chain(path, store)
+    assert result.valid is True
+    assert result.mode == "C"
+    assert result.log_id == "run-001"
+    assert result.total_records == 5
+    assert result.first_bad_seq is None and result.error is None
+    assert load.call_args_list == [call("k1", store)] * 5
+
+
+@pytest.mark.parametrize("field,value,reason", [
+    ("timestamp", "2026-11-17T23:59:59Z", "HMAC-SHA256 digest mismatch"),
+    ("event_type", "ATTACKER_EVENT", "HMAC-SHA256 digest mismatch"),
+    ("details", {"file": "innocent.txt"}, "HMAC-SHA256 digest mismatch"),
+    ("key_id", "k2", "HMAC-SHA256 digest mismatch"),
+    ("log_id", "other", "log_id differs"),
+    ("seq", True, "seq must be an integer"),
+    ("prev_tag", "f" * 64, "prev_tag does not match"),
+    ("tag", "0" * 64, "HMAC-SHA256 digest mismatch"),
+    ("details", {"x": 1.5}, "floats are not allowed"),
+])
+def test_hmac_record_damage(hmac_case, field, value, reason):
+    path, records, store, _, _ = hmac_case
+    records[2][field] = value
+    write_records(path, records)
+    assert_failure(verify_hmac_chain(path, store), 2, reason)
+
+
+@pytest.mark.parametrize("attack", ["delete", "reorder"])
+def test_hmac_sequence_attacks(hmac_case, attack):
+    path, records, store, _, _ = hmac_case
+    if attack == "delete":
+        del records[1]
+    else:
+        records[1], records[2] = records[2], records[1]
+    write_records(path, records)
+    assert_failure(verify_hmac_chain(path, store), 1, "sequence mismatch")
+
+
+def test_hmac_public_rehash_does_not_forge(hmac_case):
+    path, records, store, _, _ = hmac_case
+    records[0]["details"] = {"file": "innocent.txt"}
+    rehash(records)
+    write_records(path, records)
+    assert_failure(verify_hmac_chain(path, store), 0, "HMAC-SHA256 digest mismatch")
+
+
+def test_hmac_wrong_key(hmac_case):
+    path, _, store, keys, _ = hmac_case
+    keys["k1"] = KEY_B
+    assert_failure(verify_hmac_chain(path, store), 0, "HMAC-SHA256 digest mismatch")
+
+
+@pytest.mark.parametrize("missing_id", ["k1", "k2"])
+def test_hmac_rotation_and_missing_historical_key(hmac_case, missing_id):
+    path, _, store, keys, _ = hmac_case
+    # Build genuine logger output with rotation; the link must not reset.
+    rotated = path.with_name("rotated.jsonl")
+    logger = HMACChainLogger("rotated", rotated, "k1", key=KEY_A)
+    events = list(generate_events(5))
+    for event in events[:2]:
+        logger.append(*event)
+    logger.switch_key("k2", key=KEY_B)
+    for event in events[2:]:
+        logger.append(*event)
+    assert verify_hmac_chain(rotated, store).valid is True
+    del keys[missing_id]
+    with pytest.raises(RuntimeError, match=f"cannot verify: key '{missing_id}' unavailable"):
+        verify_hmac_chain(rotated, store)
+
+
+@pytest.mark.parametrize("failure", [KeyError("missing"), PermissionError("denied"),
+                                    OSError("offline"), NotImplementedError("pending")])
+def test_hmac_key_dependency_failures(hmac_case, failure):
+    path, _, store, _, load = hmac_case
+    load.side_effect = failure
+    with pytest.raises(RuntimeError, match="cannot verify: key 'k1' unavailable"):
+        verify_hmac_chain(path, store)
+
+
+@pytest.mark.parametrize("key", [None, b"", b"short", "A" * 32, bytearray(KEY_A)])
+def test_hmac_invalid_loaded_keys(hmac_case, key):
+    path, _, store, keys, _ = hmac_case
+    keys["k1"] = key
+    with pytest.raises(RuntimeError, match="must be bytes of at least 32 bytes"):
+        verify_hmac_chain(path, store)
+
+
+@pytest.mark.parametrize("key_id", [None, True, "", "../secret", "/tmp/secret",
+                                   "..\\secret", "C:secret", "k*", "k?", "k[1]",
+                                   "k\x00", "k.1", "é", "a" * 129,
+                                   "NUL", "con", "COM1", "lpt9"])
+def test_hmac_unsafe_key_ids_never_reach_store(hmac_case, key_id):
+    path, records, store, _, load = hmac_case
+    records[0]["key_id"] = key_id
+    write_records(path, records)
+    assert_failure(verify_hmac_chain(path, store), 0, "safe store identifier")
+    load.assert_not_called()
+
+
+@pytest.mark.parametrize("remaining", [0, 1, 3])
+def test_hmac_tail_truncation_passes(hmac_case, remaining):
+    path, records, store, _, _ = hmac_case
+    write_records(path, records[:remaining])
+    result = verify_hmac_chain(path, store)
+    assert result.valid is True
+    assert result.total_records == remaining
+
+
+def test_hmac_key_id_is_authenticated_even_with_equal_key_bytes(hmac_case):
+    path, records, store, keys, _ = hmac_case
+    keys["k2"] = KEY_A
+    records[2]["key_id"] = "k2"
+    write_records(path, records)
+    assert_failure(verify_hmac_chain(path, store), 2, "HMAC-SHA256 digest mismatch")
+
+
+@pytest.mark.parametrize("position", [0, 4], ids=["genesis", "final"])
+def test_hmac_linkage_with_correct_record_mac(hmac_case, position):
+    path, records, store, _, _ = hmac_case
+    records[position]["prev_tag"] = "f" * 64
+    records[position]["tag"] = hmac.new(
+        KEY_A, canonical_bytes(LogRecord(**records[position])), hashlib.sha256).hexdigest()
+    write_records(path, records)
+    assert_failure(verify_hmac_chain(path, store), position, "prev_tag does not match")
+
+
+def test_hmac_final_record_corruption(hmac_case):
+    path, records, store, _, _ = hmac_case
+    records[-1]["details"] = {"file": "innocent.txt"}
+    write_records(path, records)
+    assert_failure(verify_hmac_chain(path, store), 4, "HMAC-SHA256 digest mismatch")
+
+
+@pytest.mark.parametrize("mode", ["C", "D"])
+def test_hmac_independent_vector(tmp_path, monkeypatch, mode):
+    # HMAC independently calculated with OpenSSL dgst -sha256 -mac HMAC,
+    # hexkey 41 repeated 32 times, over these hand-written canonical bytes.
+    # No shared serializer/logger or hmac.new builds the test's expected tag.
+    payload = (b'{"details":{"nested":{"a":[true,null,-3,{"x":"Jos\\u00e9"}],"z":2}},'
+               b'"event_type":"LOGIN","key_id":"k1","log_id":"vector","prev_tag":"'
+               + b"0" * 64 + b'","seq":0,"timestamp":"2026-11-17T12:00:00Z"}')
+    record = json.loads(payload)
+    record["tag"] = "8b41ea2ff1d703a6e6cb77dca28a4c718d0b62a80aabae177247cb23e25edd44"
+    path = tmp_path / "vector.jsonl"
+    write_records(path, [record])
+    monkeypatch.setattr(keyring, "load_key", Mock(return_value=KEY_A))
+    monkeypatch.setattr(checkpoints, "load_checkpoints", Mock(return_value=[
+        checkpoints.Checkpoint("vector", 0, record["tag"])]))
+
+    def verify():
+        if mode == "C":
+            return verify_hmac_chain(path, tmp_path / "keys")
+        return verify_hmac_checkpoint(path, tmp_path / "keys", tmp_path / "checkpoints",
+                                      expected_log_id="vector")
+
+    assert verify().valid is True
+    record["details"]["nested"]["z"] = 3
+    write_records(path, [record])
+    assert_failure(verify(), 0, "HMAC-SHA256 digest mismatch")
+
+
+@pytest.fixture
+def checkpoint_case(hmac_case, tmp_path, monkeypatch):
+    path, records, key_store, _, _ = hmac_case
+    checkpoint_store = tmp_path / "trusted-checkpoints"
+    # Independent snapshot of trusted anchors, unaffected by stored-log edits.
+    trusted = [checkpoints.Checkpoint(record["log_id"], record["seq"], record["tag"])
+               for record in records]
+    load = Mock(return_value=trusted)
+    monkeypatch.setattr(checkpoints, "load_checkpoints", load)
+    return path, records, key_store, checkpoint_store, trusted, load
+
+
+def test_valid_checkpoint_verification(checkpoint_case):
+    path, _, keys, store, _, load = checkpoint_case
+    result = verify_hmac_checkpoint(path, keys, store, expected_log_id="run-001")
+    assert result.valid is True
+    assert result.mode == "D" and result.log_id == "run-001"
+    assert result.total_records == 5
+    assert result.first_bad_seq is None and result.error is None
+    load.assert_called_once_with("run-001", store)
+
+
+def test_checkpoint_identity_argument_is_required(checkpoint_case):
+    path, _, keys, store, _, load = checkpoint_case
+    with pytest.raises(TypeError, match="expected_log_id"):
+        verify_hmac_checkpoint(path, keys, store)
+    load.assert_not_called()
+
+
+@pytest.mark.parametrize("expected", [None, "", "../other", "other*", "a" * 129])
+def test_checkpoint_unsafe_expected_identity(checkpoint_case, expected):
+    path, _, keys, store, _, load = checkpoint_case
+    with pytest.raises(ValueError, match="expected_log_id must be a safe store identifier"):
+        verify_hmac_checkpoint(path, keys, store, expected_log_id=expected)
+    load.assert_not_called()
+
+
+@pytest.mark.parametrize("remaining", [0, 1, 3])
+def test_checkpoint_tail_truncation_fails(checkpoint_case, remaining):
+    path, records, keys, store, _, _ = checkpoint_case
+    write_records(path, records[:remaining])
+    result = verify_hmac_checkpoint(path, keys, store, expected_log_id="run-001")
+    assert result.valid is False
+    assert result.log_id == "run-001"
+    assert result.total_records == remaining
+    assert result.first_bad_seq == remaining
+    assert "missing record" in result.error
+
+
+def test_checkpoint_deleted_file_fails(checkpoint_case):
+    path, _, keys, store, _, _ = checkpoint_case
+    path.unlink()
+    result = verify_hmac_checkpoint(path, keys, store, expected_log_id="run-001")
+    assert result.valid is False
+    assert result.total_records == 0 and result.first_bad_seq == 0
+    assert result.log_id == "run-001"
+    assert "log file missing" in result.error
+
+
+@pytest.mark.parametrize("attack,reason", [("modify", "HMAC-SHA256 digest mismatch"),
+                                         ("delete", "sequence mismatch"),
+                                         ("reorder", "sequence mismatch")])
+def test_checkpoint_underlying_hmac_attacks(checkpoint_case, attack, reason):
+    path, records, keys, store, _, _ = checkpoint_case
+    if attack == "modify":
+        records[1]["details"] = {"file": "innocent.txt"}
+    elif attack == "delete":
+        del records[1]
+    else:
+        records[1], records[2] = records[2], records[1]
+    write_records(path, records)
+    assert_failure(verify_hmac_checkpoint(path, keys, store, expected_log_id="run-001"), 1, reason)
+
+
+def test_checkpoint_mismatch_on_valid_hmac_chain(checkpoint_case):
+    path, _, keys, store, trusted, _ = checkpoint_case
+    trusted[2].tag = "f" * 64
+    assert verify_hmac_chain(path, keys).valid is True
+    assert_failure(verify_hmac_checkpoint(path, keys, store, expected_log_id="run-001"),
+                   2, "tag differs from trusted checkpoint")
+
+
+@pytest.mark.parametrize("missing", ["all", "middle", "last"])
+def test_required_checkpoints_missing(checkpoint_case, missing):
+    path, _, keys, store, trusted, _ = checkpoint_case
+    if missing == "all":
+        trusted.clear()
+    elif missing == "middle":
+        del trusted[2]
+    else:
+        trusted.pop()
+    with pytest.raises(RuntimeError, match="cannot verify"):
+        verify_hmac_checkpoint(path, keys, store, expected_log_id="run-001")
+
+
+@pytest.mark.parametrize("failure", [KeyError("missing"), PermissionError("denied"),
+                                    OSError("offline"), ValueError("bad JSON"),
+                                    NotImplementedError("pending")])
+def test_checkpoint_dependency_failures(checkpoint_case, failure):
+    path, _, keys, store, _, load = checkpoint_case
+    load.side_effect = failure
+    with pytest.raises(RuntimeError, match="cannot verify: trusted checkpoints unavailable"):
+        verify_hmac_checkpoint(path, keys, store, expected_log_id="run-001")
+
+
+@pytest.mark.parametrize("damage", ["identity", "bool-seq", "duplicate", "unordered",
+                                   "bad-tag", "wrong-type", "sparse"])
+def test_invalid_trusted_checkpoint_data(checkpoint_case, damage):
+    path, _, keys, store, trusted, _ = checkpoint_case
+    if damage == "identity":
+        trusted[1].log_id = "other"
+    elif damage == "bool-seq":
+        trusted[1].seq = True
+    elif damage == "duplicate":
+        trusted[1].seq = 0
+    elif damage == "unordered":
+        trusted[1], trusted[2] = trusted[2], trusted[1]
+    elif damage == "bad-tag":
+        trusted[1].tag = "invalid"
+    elif damage == "wrong-type":
+        trusted[1] = {"log_id": "run-001", "seq": 1, "tag": "0" * 64}
+    else:
+        trusted[:] = trusted[1::2]  # checkpoint_interval=2 is unsupported
+    with pytest.raises(RuntimeError, match="cannot verify: checkpoints must"):
+        verify_hmac_checkpoint(path, keys, store, expected_log_id="run-001")
+
+
+@pytest.mark.parametrize("returned", [None, (), {}])
+def test_invalid_checkpoint_container(checkpoint_case, returned):
+    path, _, keys, store, _, load = checkpoint_case
+    load.return_value = returned
+    with pytest.raises(RuntimeError, match="nonempty trusted checkpoint list"):
+        verify_hmac_checkpoint(path, keys, store, expected_log_id="run-001")
+
+
+def test_checkpoint_empty_log_without_anchors_cannot_pass(checkpoint_case):
+    path, _, keys, store, trusted, _ = checkpoint_case
+    path.write_bytes(b"")
+    trusted.clear()
+    with pytest.raises(RuntimeError, match="nonempty trusted checkpoint list"):
+        verify_hmac_checkpoint(path, keys, store, expected_log_id="run-001")
+
+
+def test_checkpoint_log_substitution_uses_trusted_identity(checkpoint_case):
+    path, _, keys, store, trusted, load = checkpoint_case
+    other = path.with_name("other.jsonl")
+    logger = HMACChainLogger("other-log", other, "k1", key=KEY_A)
+    other_records = [logger.append(*event) for event in generate_events(5)]
+    other_checkpoints = [checkpoints.Checkpoint(r.log_id, r.seq, r.tag) for r in other_records]
+    available = {"run-001": trusted, "other-log": other_checkpoints}
+    load.side_effect = lambda identity, store_path: available[identity]
+    assert verify_hmac_chain(other, keys).valid is True  # authentic other log
+    assert_failure(verify_hmac_checkpoint(other, keys, store, expected_log_id="run-001"),
+                   0, "log_id differs from expected identity")
+    load.assert_called_once_with("run-001", store)
+    # Selecting the other identity deliberately verifies the other log. The
+    # caller's independent identity, not access to its key, prevents substitution.
+    assert verify_hmac_checkpoint(other, keys, store, expected_log_id="other-log").valid is True
+
+
+def test_checkpoint_same_identity_replay_fails(checkpoint_case):
+    path, _, keys, store, _, _ = checkpoint_case
+    other = path.with_name("other-history.jsonl")
+    # Represents another already signed artifact available to a storage reader;
+    # constructing the fixture with a key does not give that key to the attacker.
+    logger = HMACChainLogger("run-001", other, "k1", key=KEY_A)
+    for timestamp, event_type, details in generate_events(5):
+        logger.append(timestamp, event_type, {**details, "history": "different"})
+    assert verify_hmac_chain(other, keys).valid is True
+    assert_failure(verify_hmac_checkpoint(other, keys, store, expected_log_id="run-001"),
+                   0, "tag differs from trusted checkpoint")
+
+
+def test_checkpoint_silently_incomplete_trusted_snapshot_is_not_detectable(checkpoint_case):
+    path, records, keys, store, trusted, _ = checkpoint_case
+    # A faulty/stale TRUSTED loader returning only a prefix violates its
+    # load-all contract. The verifier has no independent checkpoint count.
+    # This is a dependency limit, not a permitted storage-only attacker action.
+    del trusted[3:]
+    write_records(path, records[:3])
+    assert verify_hmac_checkpoint(path, keys, store, expected_log_id="run-001").valid is True
+
+
+def test_checkpoint_malformed_log_does_not_trigger_key_lookup(checkpoint_case, hmac_case):
+    path, _, keys, store, _, _ = checkpoint_case
+    *_, load_key = hmac_case
+    path.write_text('{"details":{"x":1,"x":2}}\n', encoding="utf-8")
+    assert_failure(verify_hmac_checkpoint(path, keys, store, expected_log_id="run-001"),
+                   0, "duplicate JSON key")
+    load_key.assert_not_called()
+
+
+def test_checkpoint_key_dependency_failure_is_not_success(checkpoint_case, hmac_case):
+    path, _, keys, store, _, _ = checkpoint_case
+    *_, load_key = hmac_case
+    load_key.side_effect = KeyError("missing")
+    with pytest.raises(RuntimeError, match="cannot verify: key"):
+        verify_hmac_checkpoint(path, keys, store, expected_log_id="run-001")
+
+
+def test_checkpoint_logger_rotation_with_mocked_security_stores(tmp_path, monkeypatch):
+    # Exercises real logger/verifier wiring but NOT on-disk key/checkpoint stores.
+    path = tmp_path / "d.jsonl"
+    keys, store = tmp_path / "keys", tmp_path / "checkpoints"
+    trusted = []
+
+    def create(identity, seq, tag, store_path):
+        assert store_path == store
+        checkpoint = checkpoints.Checkpoint(identity, seq, tag)
+        trusted.append(checkpoint)
+        return checkpoint
+
+    monkeypatch.setattr(checkpoints, "create_checkpoint", create)
+    monkeypatch.setattr(checkpoints, "load_checkpoints", Mock(return_value=trusted))
+    monkeypatch.setattr(keyring, "load_key", lambda name, store_path: {"k1": KEY_A, "k2": KEY_B}[name])
+    logger = HMACCheckpointLogger("rotation", path, "k1", store, key=KEY_A)
+    events = list(generate_events(5))
+    for event in events[:2]:
+        logger.append(*event)
+    logger.switch_key("k2", key=KEY_B)
+    for event in events[2:]:
+        logger.append(*event)
+    assert [cp.seq for cp in trusted] == list(range(5))
+    assert verify_hmac_checkpoint(path, keys, store, expected_log_id="rotation").valid is True
