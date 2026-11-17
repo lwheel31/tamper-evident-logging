@@ -131,19 +131,34 @@ reviews and documentation work as well as code generation.
   trusted checkpoints passed, confirming the retrieval/freshness boundary.
   Mocks do not establish physical trust separation or persistence correctness.
 
-## 2026-11-17 — AI disclosure refactor
+## 2026-11-17 — Sprint 03: Storage-only attacks
 
 **Tool / team member:** OpenAI Codex / Julian Roberts.
 
-- **Purpose / prompt:** Condense the usage log into an academic engineering
-  disclosure, consolidate Sprint 01, and establish the format above.
-- **AI contributions:** Rewrote this document, preserving attribution, material
-  decisions, review findings, validation results, and dependencies.
-- **Student direction / decisions:** Julian required transparency about AI
-  authorship, preservation of teammates' contributions, removal of obsolete
-  approval statements, and changes limited to this file.
-- **Review / validation:** Checked the rewrite against the prior disclosure and
-  recorded session evidence; checked whitespace and file scope. No code tests
-  were rerun for this documentation-only change.
-- **Limitations / dependencies:** Documentation only; outstanding technical
-  dependencies and integration limits are unchanged.
+- **Purpose / prompt:** Implement reproducible modification, deletion, reordering,
+  truncation, and public SHA-256 reconstruction; test artifacts and verifier
+  outcomes within the existing threat model.
+- **AI contributions:** Generated `attacks.py`, attack tests, adversarial probes,
+  and this entry. Added `repair_sequences` and `rebuild_hash_chain` without
+  changing existing public signatures; full-log fabrication remains deferred.
+- **Student direction / decisions:** Julian required separate evidence-preserving
+  copies, deterministic behavior, invalid-request rejection, no silent overwrite,
+  no key/checkpoint access, and unchanged HMAC tags. CLI and experiment
+  orchestration remained excluded. AI-proposed helpers make sequence repair
+  and hash reconstruction explicit stages; basic attacks preserve labels/tags.
+- **Review / validation:** Full pytest: **407 passed, 7 skipped**, versus the
+  verified **305 passed, 11 skipped** baseline; 102 attack cases replaced four
+  skipped stubs. Tests check exact record effects, source/trusted-file preservation,
+  no trusted-interface calls, repeatability, collisions, malformed inputs, and
+  actual verifier detection/evasion. Review added cyclic-payload rejection and
+  tail-deletion coverage. Additional probes confirmed composed Mode B evasion,
+  hard-link overwrite refusal, and that relabelling HMAC data as Mode B does
+  not forge a chain accepted by the original Mode C verifier. Existing signature
+  comparison and whitespace checks passed.
+- **Limitations / dependencies:** C/D persistence remains mocked; integration
+  still depends on Ashton's stores. Mode guards inspect unauthenticated field
+  shape, so experiments must independently retain the original verification mode.
+  Outputs reformat JSON; source bytes are preserved. Stable synthetic artifacts
+  are required, input size is unbounded, and failed writes can leave partial
+  outputs. Artifact creation does not establish detection evasion or incident
+  concealment; tail deletion remains undetectable in A/B/C without trusted anchors.
