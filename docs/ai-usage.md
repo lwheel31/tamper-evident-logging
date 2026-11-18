@@ -162,3 +162,92 @@ reviews and documentation work as well as code generation.
   are required, input size is unbounded, and failed writes can leave partial
   outputs. Artifact creation does not establish detection evasion or incident
   concealment; tail deletion remains undetectable in A/B/C without trusted anchors.
+
+## 2026-11-17 — Sprint 04: Experiment automation and integration readiness
+
+**Tool / team member:** OpenAI Codex / Julian Roberts.
+
+- **Purpose / prompt:** Automate all 16 mode/attack combinations with reproducible
+  inputs, truthful classifications, CLI configuration, and report evidence while
+  security persistence remains pending; review main-branch alignment and
+  prepare an integration contract and PR proposal.
+- **AI contributions:** Generated `experiment.py`, experiment-only CLI wiring,
+  `test_experiment.py`, methodology/results documentation, and this entry.
+  Added isolated runs, independent attack-effect checks, source/artifact hashes,
+  checkpoint snapshots, sanitized errors, and untouched-control verification.
+  Continued readiness work preserved existing code/tests and added read-only
+  GitHub comparison, interface/merge assessment, and a proposed PR description.
+- **Student direction / decisions:** Julian required one shared event stream,
+  payroll targeting, A sequence repair/B public reconstruction, preserved C/D
+  authentication data, trusted mode/identity selection, no overwrites or secret
+  export, and production use of real interfaces with mocks confined to tests.
+- **Review / validation:** Full pytest: **436 passed, 7 skipped**, versus the
+  verified **407 passed, 7 skipped** baseline; 29 new cases cover orchestration,
+  exports, CLI, isolation, reproducibility, and fault classification. Adversarial
+  checks prevent no-op attacks, altered originals/checkpoints, changed keys, and
+  incomplete controls from yielding false detection claims. Real unmocked CLI
+  and repeat API runs with 50 events/seed 42 produced **8 MISSED A/B cells and
+  8 BLOCKED C/D cells**; reports matched apart from run directory and exported
+  artifact hashes were checked. Revalidation confirmed the same results; live
+  refs are 4 ahead/1 behind main, whose merge-only commit has no additional file
+  changes from the common base. No current textual conflicts are expected.
+  Whitespace checks passed.
+- **Limitations / dependencies:** C/D stopped at the actual key-generation stub;
+  full-path store-double tests are not integration results. Complete/current
+  trusted snapshots, historical keys, permissions, and persistence remain Ashton's
+  integration dependencies. Snapshot comparisons do not prove initial freshness;
+  artifacts must remain stable and resource bounds remain absent. Reordering
+  changes chronology without removing the export. Private trusted stores must
+  not be published with report artifacts.
+
+## 2026-11-17 — Sprint 05: Integration gates and reproduction
+
+**Tool / team member:** OpenAI Codex / Julian Roberts.
+
+- **Purpose / prompt:** Audit the cumulative workstream, preserve Sprint 04,
+  correct public contracts/docs, prepare real-store integration gates, validate
+  clean installation/reproduction, and prepare academic handoff.
+- **AI contributions:** Updated README/interfaces/methodology and generated
+  `docs/reproduction.md`, five real-store scenarios in `test_integration.py`,
+  and a default-output ignore rule. Runtime modules and Sprint 04 tests were
+  preserved; no persistence implementation was generated.
+- **Student direction / decisions:** Julian required exact known-dependency
+  skips, no hidden unexpected failures or fake integration results, independent
+  working-tree installation, secret/artifact review, and human approval before
+  publication or submission. AI implemented origin/message-specific skip gating.
+- **Review / validation:** Local and isolated non-editable package suites both
+  report **436 passed, 11 skipped**: five real-store gates replace one placeholder
+  and stop at the real key-generation stub; six owner placeholders remain. All
+  11 installed module files match source. Installed CLI repeats reproduce **8
+  MISSED / 8 BLOCKED** cells with matching evidence hashes. Skip-policy fault
+  probes, dependency checks, credential-marker/candidate-file review, and
+  whitespace checks passed. Environment/commands are recorded in reproduction docs.
+- **Limitations / dependencies:** Actual C/D persistence, physical trust, and
+  complete/current snapshot retrieval remain unvalidated and depend on Ashton.
+  No student-independent validation is claimed. Only macOS/Python 3.13.3 was
+  exercised; dependencies are not locked. No merge, commit, push, or PR was made.
+
+## 2026-11-17 — Final quality gate and publication preparation
+
+**Tool / team member:** OpenAI Codex / Julian Roberts.
+
+- **Purpose / prompt:** Review the cumulative work against live main, validate
+  reproducibility and publication candidates, and publish only if no substantive
+  defect is found.
+- **AI contributions:** Audited source/tests/contracts and attribution, corrected
+  revision and approval wording in documentation, prepared the scoped commit/push
+  and final PR description, and executed validation and artifact/credential checks.
+  Git history and the final handoff record the publication outcome.
+- **Student direction / decisions:** Julian authorized staging, committing, and
+  pushing intended Sprint 04/05 files after passing gates; substantive defects
+  require stopping. Opening a PR, merging, and implementing persistence remain
+  excluded. No independent human validation is claimed.
+- **Review / validation:** Full suite: **436 passed, 11 skipped**, matching the
+  latest baseline. Two fresh installed-CLI runs reproduce **8 MISSED / 8 BLOCKED**
+  cells; reports match apart from run directory, hashes/controls agree, and all
+  11 installed module files match source. CLI help/argument checks and dependency
+  checks passed. No substantive in-scope defect was identified.
+- **Limitations / dependencies:** Real C/D integration remains blocked by the
+  key-generation stub. Historical keys, complete/current checkpoint retrieval,
+  physical trust separation, stable inputs, and absent resource bounds retain
+  their documented limits; mocked coverage is not measured C/D integration.
