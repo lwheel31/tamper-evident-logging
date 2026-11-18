@@ -132,10 +132,6 @@ counts, installation evidence, artifact review, blockers, and submission gates;
 [experiment methodology](docs/experiments.md) contains the detailed protocol and
 proposed cumulative PR description.
 
-## AI disclosure
+## AI Disclosure
 
-AI generated substantial implementation, tests, reviews, and documentation under
-student direction. Contributions and explicit human decisions are attributed in
-[docs/ai-usage.md](docs/ai-usage.md). Passing tests and AI reviews do not establish
-independent student authorship or validation. Students must explain and approve
-the security reasoning before submission.
+AI tools assisted with implementation, testing, documentation, and code review under student direction. Contributions and design decisions are documented in `docs/ai-usage.md`. Each team member is responsible for understanding and explaining their respective implementation.

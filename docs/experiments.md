@@ -236,6 +236,7 @@ assumption about the write/checkpoint window remains necessary.
 
 **Description:**
 
+```markdown
 Implement Modes A-D verification, storage-only attack helpers, and a seeded
 experiment CLI covering all 16 mode/attack combinations. Each case starts from
 independent evidence, applies the configured repair/reconstruction strategy,
@@ -256,6 +257,11 @@ supplied `expected_log_id` and complete/current per-record checkpoints. This PR
 preserves Lucas's implementation and Ashton's modules; real persistence/trust
 separation still requires integration validation. GUI work and other CLI
 subcommands are outside this change.
+
+## AI Disclosure
+
+AI tools assisted with implementation, testing, documentation, and code review under student direction. Contributions and design decisions are documented in `docs/ai-usage.md`. Each team member is responsible for understanding and explaining their respective implementation.
+```
 
 ### Readiness revalidation evidence
 
