@@ -39,11 +39,35 @@ def test_jsonl_roundtrip():
     assert restored == rec
 
 
-# TODO (ALL): Add tests for edge cases — empty details, Unicode in details,
-# very large seq numbers, None fields.
+def _rec(details):
+    return LogRecord(log_id="t", seq=0, timestamp="2026-01-01T00:00:00Z",
+                     event_type="X", details=details)
 
 
-@pytest.mark.skip(reason="PENDING — events.generate_events not yet implemented")
-def test_generate_events_deterministic():
-    """Same seed must produce same event sequence."""
-    pass
+def test_key_order_does_not_change_bytes():
+    assert canonical_bytes(_rec({"a": 1, "b": {"y": 2, "x": 3}})) == \
+           canonical_bytes(_rec({"b": {"x": 3, "y": 2}, "a": 1}))
+
+
+def test_unicode_is_stable():
+    raw = canonical_bytes(_rec({"user": "Jos\u00e9"}))
+    assert raw.isascii()
+    assert jsonl_to_record(record_to_jsonl(_rec({"user": "Jos\u00e9"}))).details["user"] == "Jos\u00e9"
+
+
+def test_non_string_keys_rejected():
+    # {1: "x"} and {"1": "x"} would otherwise serialize identically
+    with pytest.raises(TypeError):
+        canonical_bytes(_rec({1: "x"}))
+
+
+def test_floats_rejected():
+    with pytest.raises(TypeError):
+        canonical_bytes(_rec({"amount": 1.5}))
+
+
+def test_malformed_line_raises():
+    with pytest.raises((ValueError, TypeError)):
+        jsonl_to_record('{"log_id": "t"}')  # missing fields
+    with pytest.raises(ValueError):
+        jsonl_to_record("not json")
