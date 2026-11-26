@@ -1,16 +1,37 @@
 # Reproduction and human-review handoff
 
-## Integration review — 2026-11-25
+## Current merged baseline — 2026-11-26
+
+PR #5 was merged into `main` with merge commit
+`a42cb639520cb586293d19da9ca72aa0af6c517f`. This integrated baseline includes
+Lucas's logging, Julian's verification/attacks/experiments, Ashton's key and
+checkpoint persistence, and the reviewed integration corrections. Real C/D
+integration is implemented; PR #4 is not needed to supply missing functionality.
+
+Use the reviewed integration revision on `main` and record `git rev-parse HEAD`
+for the exact checkout being reproduced. The records below retain the validation
+performed before the merge: they do not claim a new post-merge test run. The
+November 25 corrected review measured 485 passing tests on Ubuntu and 482 passing
+tests with three failures on Windows, with no skips. Those Windows platform
+limitations remain documented below. Two installed 50-event/seed-42 runs exercised
+all four modes with valid baselines and controls. Security assumptions, Windows
+ACL caveats, and checkpoint completeness/freshness limits still apply.
+
+## Historical integration review — 2026-11-25
+
+This section records the pre-merge review and its measured evidence. Its branch
+and PR descriptions refer to that review point, not the current merged state.
 
 GitHub PR #4 was independently checked: open, unmerged, mergeable, head
 `228d8fbd807ac7529ddac4b524a9eb6bdb8a61e8`, base
 `cf58a794cdbbf73d0770df1132b4cdbe65884189`, six commits ahead and none behind.
-The review uses local `integration-review/ashton-security` from that head.
-Publication of the reviewed corrections in an integration PR is now approved;
-merging remains subject to separate human approval. The historical Sprint 05 sections below describe the earlier state,
-not the current persistence implementation or merge instructions.
+The review used local `integration-review/ashton-security` from that head.
+Publication of the reviewed corrections in an integration PR was approved;
+merge approval had not yet been given at that review point. The historical
+Sprint 05 sections below describe the earlier state, not the current persistence
+implementation or merge instructions.
 
-### Actual validation
+### Recorded pre-merge validation
 
 | Check | November 25 measured result |
 |---|---|
@@ -86,7 +107,10 @@ the established guarantees. No entropy proof or OS credential isolation was
 established by these tests. All validation was AI-assisted and tool-executed;
 human academic review is still required.
 
-### Human review and merge sequence
+### Historical publication and merge plan — superseded by PR #5
+
+The following plan was recorded before PR #5 merged. It is retained as a
+historical handoff, not a pending integration requirement.
 
 PR #4 is not recommended for merge as-is: it lacks the reviewed corrections.
 Julian approved committing the reviewed persistence, test, and documentation
@@ -102,22 +126,26 @@ Record its new commit, run the complete suite with fresh external test storage,
 install that exact revision in a fresh environment, and run the 50-event/seed-42
 installed CLI twice. Require the four valid baselines and matrix in
 [experiments](experiments.md), retain reviewed nonsecret evidence, and update
-report/presentation revision references. Merging either PR remains unauthorized;
+report/presentation revision references. At that review point, merging either PR
+was not yet authorized;
 coordinate superseding PR #4 without deleting Ashton's branch.
 
 ## Revision and scope
 
-Use the reviewed Sprints 01-05 publication revision of `julian/testing` and
-record its full commit ID with `git rev-parse HEAD`. Historical revision
+Use the reviewed integration revision on `main` and record its full commit ID
+with `git rev-parse HEAD`. The earlier Sprints 01-05 work on `julian/testing` is
+included in the merged baseline. Historical revision
 `728dbce` contains only Sprints 01-03 and cannot reproduce the complete workstream.
 For a published revision, use a clean checkout at that exact commit. For an
 uncommitted review, copy the intended working tree; `git archive HEAD` omits
 uncommitted changes.
 
-The runtime implementation is preserved. Sprint 05 updates documentation,
-prepares real-store tests, and protects the default output directory from
-accidental inclusion. It does not implement persistence, add runtime dependencies,
-redesign security components, or certify deployment isolation.
+Historically, Sprint 05 updated documentation, prepared real-store tests, and
+protected the default output directory from accidental inclusion. That sprint
+did not implement persistence, add runtime dependencies, redesign security
+components, or certify deployment isolation. Persistence and its reviewed
+corrections are now included in the integrated baseline; deployment isolation
+still requires independently protected stores.
 
 ## Independent reproduction
 
@@ -159,19 +187,21 @@ For packaging validation, use a fresh temporary directory and non-editable insta
    env -u PYTHONPATH /tmp/tamperlog-check/venv/bin/tamperlog experiment --output-dir /tmp/tamperlog-check/runs --event-count 50 --seed 42
    ```
 
-   Confirm both untouched A/B logs verify 50 records, all 16 cells are present,
-   parameters/targets match, and A/B input copies and artifact hashes match.
-   Reports should match apart from run directory while C/D are blocked. With real
-   random keys, C/D tag bytes need not match; compare content, controls, and outcomes.
+   Confirm all four untouched logs and post-attack controls verify 50 records,
+   all 16 cells are present, parameters/targets match, and input copies match
+   their originals. Check every exported artifact hash. Across repeats, compare
+   A/B artifact bytes and hashes; with real random keys, C/D tag bytes need not
+   match, so compare their content, controls, and outcomes.
 5. Record Python, pip, resolved dependency versions, source/test hashes, and the
    actual commands/results. Dependencies are lower-bounded, not locked: this is
    a source/parameter reproduction procedure, not a bit-for-bit environment lock.
-   Only macOS/Python 3.13.3 has been exercised; declared Python >= 3.10 support
-   still needs a runtime/platform matrix.
+   The historical records cover macOS/Python 3.13.3, Windows/Python 3.13.5, and
+   Ubuntu/WSL/Python 3.14.4. Other combinations under declared Python >= 3.10
+   support still need runtime/platform validation.
 
 ## Real-store test gates
 
-`tests/test_integration.py` contains five scenarios, without mocks:
+`tests/test_integration.py` contains real-store scenarios without mocks:
 
 - One full experiment verifies all 16 actual mode/attack combinations after a
   real key/checkpoint preflight; 50 anchors exercise numeric sorting beyond 9.
@@ -179,6 +209,8 @@ For packaging validation, use a fresh temporary directory and non-editable insta
   store missing the old identifier and require `KeyError` / `cannot verify`.
 - Two checkpoint tests retain valid HMAC records while required tail anchors
   are absent or a well-formed trusted tag disagrees.
+- Additional tests reject a different independently configured log identity
+  and an empty checkpoint store.
 
 The skip helper recognizes only exact known provider-stub messages raised from
 those entry points' code objects. Permission errors, malformed data, arbitrary
@@ -186,12 +218,14 @@ those entry points' code objects. Permission errors, malformed data, arbitrary
 not skips. After preflight succeeds, blocked/error runner cells fail the real
 matrix test instead of becoming skips. No test manufactures valid C/D outcomes.
 
-Currently, all five scenarios stop at the real `generate_key` stub. Six separate
-teammate-owned unit/logger placeholders remain skipped. Replacing the old single
-integration placeholder adds four explicit blocked scenarios, not four passing
-results or a regression in implemented behavior.
+Historical Sprint 05 state (November 17): all five scenarios stopped at the real
+`generate_key` stub, and six separate teammate-owned unit/logger placeholders
+were skipped. Replacing the old single integration placeholder added four
+explicit blocked scenarios at that time, not four passing results or a
+regression in implemented behavior. The November 25 records above document
+execution with real persistence and no skips.
 
-## Recorded validation — 2026-11-17
+## Historical recorded validation — 2026-11-17
 
 | Check | Actual result |
 |---|---|
@@ -226,13 +260,16 @@ the two additional reports are in `publication-runs/run-nqhxyyox/` and
 `publication-runs/run-3w4pcki_/`. Module provenance, help/invalid-count behavior,
 dependency checks, controls, and exported artifact hashes were rechecked.
 
-## Audit findings and remaining blockers
+## Historical Sprint 05 audit findings — 2026-11-17
+
+These findings describe the pre-persistence Sprint 05 state. The November 25
+review and current merged-baseline section supersede its integration blockers.
 
 - No new in-scope runtime correctness defect was identified in the cumulative
   audit. Parser duplication has distinct purposes: verification enforces
   continuity; attack helpers must accept gaps/reordering for explicit repair.
   The existing control/evidence checks are retained rather than redesigned.
-- Real C/D integration remains blocked. Ashton must retain immutable historical
+- Real C/D integration was blocked at that time. Trusted stores must retain immutable historical
   keys and provide complete, current, stable per-record checkpoint retrieval or
   raise. A stale log plus matching stale anchors can pass if that contract is
   violated; snapshot hashes only detect changes observed during a run.
@@ -260,7 +297,11 @@ private-key/token patterns and unexpected binary/generated files without printin
 secrets. Do not include virtual environments, local package metadata, or pip
 caches. Record actual blocked cells; do not infer C/D detection from mocks.
 
-## Human approval and PR handoff
+## Historical Sprint 05 approval and PR handoff
+
+These instructions were recorded for the earlier `julian/testing` publication.
+That work and the subsequent security persistence integration are now merged;
+this section does not describe outstanding project deliverables.
 
 1. Independently explain the decisions below and review implementation, skips,
    installation evidence, and artifact inventory. Resolve shared-contract issues
@@ -291,5 +332,5 @@ rehashing versus keyed authentication; authenticated historical key IDs and
 rotation; why valid prefixes pass C; why D needs independent identity and current
 anchors; why unavailable data is not detection; why reordering need not conceal
 an incident; and why tests/mocks/hashes do not establish physical trust or human
-validation. Human review is the next step; no merge, commit, push, or PR creation
-is authorized by this document.
+validation. At that handoff, human review was the next step; the document itself
+did not authorize a merge, commit, push, or PR creation.
