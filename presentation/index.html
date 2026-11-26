@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Local image-slide presentation with the existing TamperLab live demo.">
+  <title>Tamper-Evident Logging · Presentation</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="presentation.css">
+  <script src="presentation.js" defer></script>
+</head>
+<body data-controls-visible="true">
+  <main id="deck" tabindex="-1" aria-label="Presentation slide">
+    <section class="slide" data-slide="1" aria-label="Slide 1">
+      <div class="image-canvas">
+        <div class="placeholder"><p>Slide 1 · image pending</p><code>assets/slides/slide-1.png</code></div>
+        <img class="slide-image" data-src="assets/slides/slide-1.png" alt="Presentation slide 1" hidden>
+      </div>
+    </section>
+    <section class="slide" data-slide="2" aria-label="Slide 2" hidden>
+      <div class="image-canvas">
+        <div class="placeholder"><p>Slide 2 · image pending</p><code>assets/slides/slide-2.png</code></div>
+        <img class="slide-image" data-src="assets/slides/slide-2.png" alt="Presentation slide 2" hidden>
+      </div>
+    </section>
+    <section class="slide" data-slide="3" aria-label="Slide 3" hidden>
+      <div class="image-canvas">
+        <div class="placeholder"><p>Slide 3 · image pending</p><code>assets/slides/slide-3.png</code></div>
+        <img class="slide-image" data-src="assets/slides/slide-3.png" alt="Presentation slide 3" hidden>
+      </div>
+    </section>
+    <section class="slide demo-slide" data-slide="4" aria-label="Slide 4: interactive TamperLab" hidden>
+      <iframe id="demo-frame" title="Interactive TamperLab live demo" referrerpolicy="no-referrer"></iframe>
+      <aside id="demo-fallback" class="demo-fallback" aria-labelledby="fallback-title" hidden>
+        <h1 id="fallback-title">Open the live demo separately</h1>
+        <p id="fallback-message">If the embedded app is blank or blocked, use the existing demo in a new tab.</p>
+        <a class="open-demo" href="http://127.0.0.1:8501" target="_blank" rel="noopener noreferrer">Open Live Demo</a>
+        <p>Close the demo tab or switch back to this presentation to continue. Click <strong>Focus deck</strong> to resume slide shortcuts.</p>
+        <button id="dismiss-fallback" type="button">Show embedded demo</button>
+      </aside>
+    </section>
+    <section class="slide" data-slide="5" aria-label="Slide 5" hidden>
+      <div class="image-canvas">
+        <div class="placeholder"><p>Slide 5 · image pending</p><code>assets/slides/slide-5.png</code></div>
+        <img class="slide-image" data-src="assets/slides/slide-5.png" alt="Presentation slide 5" hidden>
+      </div>
+    </section>
+    <section class="slide" data-slide="6" aria-label="Slide 6" hidden>
+      <div class="image-canvas">
+        <div class="placeholder"><p>Slide 6 · image pending</p><code>assets/slides/slide-6.png</code></div>
+        <img class="slide-image" data-src="assets/slides/slide-6.png" alt="Presentation slide 6" hidden>
+      </div>
+    </section>
+  </main>
+  <footer id="control-rail" aria-label="Presentation controls">
+    <nav aria-label="Slide navigation">
+      <button id="previous" type="button" aria-label="Previous slide" title="Previous slide (Left / PageUp)">Previous</button>
+      <output id="position" aria-live="polite" aria-atomic="true">1 / 6</output>
+      <button id="next" type="button" aria-label="Next slide" title="Next slide (Right / Space / PageDown)">Next</button>
+    </nav>
+    <div id="demo-controls" hidden>
+      <a href="http://127.0.0.1:8501" target="_blank" rel="noopener noreferrer">Open Live Demo</a>
+      <button id="demo-help" type="button" aria-expanded="false" aria-controls="demo-fallback" title="Demo fallback options (D)">Demo help</button>
+      <button id="focus-deck" type="button">Focus deck</button>
+    </div>
+    <div id="timer-panel" hidden>
+      <output id="elapsed" aria-label="Elapsed presentation time">0:00</output>
+      <span class="timer-target">/ 7:30</span>
+      <button id="timer-start" type="button">Start</button>
+      <button id="timer-reset" type="button">Reset</button>
+    </div>
+    <div class="utilities">
+      <button id="toggle-timer" type="button" aria-expanded="false" aria-controls="timer-panel" title="Show or hide timer (T)">Timer</button>
+      <button id="fullscreen" type="button" title="Toggle fullscreen (F)">Fullscreen</button>
+    </div>
+    <span id="shell-status" class="sr-only" role="status" aria-live="polite"></span>
+  </footer>
+  <noscript>This local presentation needs JavaScript. Keep a PowerPoint or PDF backup available.</noscript>
+</body>
+</html>
