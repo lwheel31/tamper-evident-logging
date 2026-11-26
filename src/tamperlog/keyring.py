@@ -57,12 +57,23 @@ def generate_key(key_id: str, store_path: Path) -> None:
 
     key = secrets.token_bytes(KEY_BYTES)
     # O_EXCL: fail instead of overwriting if the file appeared in the meantime.
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_BINARY", 0), 0o600)
     try:
-        os.write(fd, key)
-        os.fsync(fd)
-    finally:
-        os.close(fd)
+        try:
+            remaining = memoryview(key)
+            while remaining:
+                written = os.write(fd, remaining)
+                if written <= 0:
+                    raise OSError("key write made no progress")
+                remaining = remaining[written:]
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+    except BaseException:
+        # This call exclusively created the file; failed generation must not
+        # leave a partial key reserving an otherwise retryable identifier.
+        path.unlink(missing_ok=True)
+        raise
 
 
 def load_key(key_id: str, store_path: Path) -> bytes:

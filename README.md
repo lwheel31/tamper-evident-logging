@@ -4,14 +4,18 @@ A synthetic cybersecurity experiment comparing plaintext, SHA-256 chaining,
 HMAC chaining, and HMAC with trusted checkpoints against a storage attacker.
 
 **Current status:** All loggers, verifiers, four required attacks, experiment
-orchestration, and the experiment CLI are implemented. Real A/B runs work.
-Ashton's key/checkpoint persistence remains unimplemented, so real C/D runs are
-blocked. Mocked tests do not establish completed integration.
+orchestration, and the experiment CLI are implemented. Ashton's persistence is
+implemented on the integration-review branch. Two installed 50-event/seed-42
+runs exercised all four modes with real disposable stores. Local persistence
+corrections are approved for publication in an integration PR; merging remains
+subject to human approval. PR #4 is not merged.
 
 ## Install and run
 
-Requires Python **>= 3.10**. Current validation uses Python **3.13.3 on macOS**;
-other supported runtimes/platforms have not been validated. Runtime code uses
+Requires Python **>= 3.10**. The November 25 review exercised Windows/Python
+**3.13.5** and Ubuntu/WSL/Python **3.14.4**; Windows has three platform-specific
+test failures described below. Earlier validation used macOS/Python 3.13.3.
+Other supported runtime combinations have not been validated. Runtime code uses
 the standard library; the declared development dependency is `pytest>=7.0`.
 
 From the reviewed checkout or an exact working-tree snapshot (macOS/Linux):
@@ -55,7 +59,7 @@ identity; record contents never select those security assumptions.
 |---|---|
 | `events.py`, `loggers.py` | Lucas: deterministic events, A-C logging, and D append calls into checkpoints. |
 | `schema.py`, `serialization.py` | Shared contracts: eight-field JSONL records and deterministic canonical bytes. |
-| `keyring.py`, `checkpoints.py` | Ashton: protected historical keys and trusted per-record anchors; persistence pending. |
+| `keyring.py`, `checkpoints.py` | Ashton: historical key persistence and trusted per-record anchors; local integration corrections under review. |
 | `verifier.py`, `attacks.py`, `experiment.py` | Julian: verification, storage-only attacks, experiment execution, and integration. |
 | CLI and shared reviews | Team collaboration; experiment subcommand implemented. |
 
@@ -85,20 +89,19 @@ There are no explicit resource bounds or snapshot locks.
 
 ## Actual experiment evidence
 
-Real unmocked runs with **50 events, seed 42** verified both A/B originals and
+Two installed, unmocked runs on November 25 with **50 events, seed 42** verified all four originals and
 targeted payroll export sequence **25**. A deletion/reorder repairs sequences;
 B rebuilds public sequences/links/hashes. C/D preserve HMAC tags and checkpoints.
 
 | Attack | A | B | C | D |
 |---|---|---|---|---|
-| Modify | MISSED | MISSED | BLOCKED | BLOCKED |
-| Delete | MISSED | MISSED | BLOCKED | BLOCKED |
-| Reorder | MISSED | MISSED | BLOCKED | BLOCKED |
-| Truncate | MISSED | MISSED | BLOCKED | BLOCKED |
+| Modify | MISSED | MISSED | DETECTED | DETECTED |
+| Delete | MISSED | MISSED | DETECTED | DETECTED |
+| Reorder | MISSED | MISSED | DETECTED | DETECTED |
+| Truncate | MISSED | MISSED | MISSED | DETECTED |
 
-Eight misses and eight blocked cells are observed results for these strategies.
-C/D stopped at the real key-generation stub; they are not measured successes
-or failures. `MISSED` means the transformation passed verification: reordering
+Nine misses and seven detections are observed results for these strategies,
+with all untouched 50-record baselines and controls valid. `MISSED` means the transformation passed verification: reordering
 changes chronology but leaves the export present. Unrepaired/unrehashed edits
 are covered separately by attack/verifier tests.
 
@@ -117,16 +120,18 @@ nonsecret evidence should enter an academic submission.
 
 ## Tests and submission readiness
 
-Latest local and isolated installed-package validation: **436 passed, 11 skipped**
-(2026-11-17). Run `python -m pytest -q -rs` to show skip reasons. Unit and orchestration tests
-use explicit test doubles for pending stores; `tests/test_integration.py` uses
-real store interfaces with no fallback keys or mocks. Its five scenarios cover
-the full 16-cell runner, C/D historical rotation and missing keys, and missing
-or mismatched checkpoints. They skip only exact known unimplemented entry-point
+November 25 validation of the locally corrected review: **485 passed, no skips**
+in an isolated Ubuntu installed-package suite; Windows reports **482 passed,
+3 failed, no skips** (two symlink privilege failures and a POSIX `0600` assertion).
+Windows ACL isolation remains an operator responsibility; POSIX mode arguments
+do not establish Windows owner-only access. Run `python -m pytest -q -rs`.
+Unit and orchestration tests use explicit store doubles; `tests/test_integration.py` uses
+real store interfaces with no fallback keys or mocks. Its scenarios cover
+the full 16-cell runner, C/D historical rotation and missing keys, missing
+or mismatched checkpoints, and independent identity. The historical skip helper recognizes only exact known unimplemented entry-point
 stubs; unexpected errors and assertion failures remain failures.
 
-Teammate-owned keyring/checkpoint/logger test placeholders also remain skipped.
-Those are unfinished tests, not integration evidence. See
+Ashton's keyring/checkpoint/logger tests now execute. No new skips hide failures. See
 [reproduction and human-review handoff](docs/reproduction.md) for actual validation
 counts, installation evidence, artifact review, blockers, and submission gates;
 [experiment methodology](docs/experiments.md) contains the detailed protocol and

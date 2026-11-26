@@ -1,5 +1,110 @@
 # Reproduction and human-review handoff
 
+## Integration review — 2026-11-25
+
+GitHub PR #4 was independently checked: open, unmerged, mergeable, head
+`228d8fbd807ac7529ddac4b524a9eb6bdb8a61e8`, base
+`cf58a794cdbbf73d0770df1132b4cdbe65884189`, six commits ahead and none behind.
+The review uses local `integration-review/ashton-security` from that head.
+Publication of the reviewed corrections in an integration PR is now approved;
+merging remains subject to separate human approval. The historical Sprint 05 sections below describe the earlier state,
+not the current persistence implementation or merge instructions.
+
+### Actual validation
+
+| Check | November 25 measured result |
+|---|---|
+| Original PR, Windows/Python 3.13.5/pytest 9.0.0 | 465 passed, 6 failed, no skips. |
+| Pre-fix deterministic regressions | Binary-key translation and conflicting checkpoint publication failed; identical concurrent publication passed. |
+| Corrected Windows full suite | 482 passed, 3 failed, no skips (485 collected). |
+| Isolated installed Ubuntu/WSL suite | 485 passed, no skips; Python 3.14.4, pytest 9.2.0. |
+| Isolated Windows package | Non-editable wheel installed; module bytes matched reviewed snapshot; `pip check` passed. |
+| Installed Windows console CLI, twice | All 16 cells ran; 7 DETECTED, 9 MISSED. All four baselines and 16 controls verified 50 records. |
+| Evidence/repeat checks | All exported artifact hashes and input/original copies matched; D had 50 matching anchors. Events, targets, A/B bytes and C/D content/outcomes repeated. Random keys differed. |
+| Real-store security gates | Historical C/D rotation, unavailable old keys, missing/mismatched/empty checkpoints, and independent identity executed without store mocks. |
+
+The remaining Windows failures are two `WinError 1314` symlink creation failures
+and `test_key_file_is_owner_only` (`0666` reported instead of POSIX `0600`). No
+skips, mocks, or permission changes were added to conceal them. The binary-key
+fix also resolved nondeterministic corrupted-key and repeat-result failures.
+An export assertion now explicitly reads UTF-8 rather than the Windows default
+code page. POSIX mode bits are not evidence of Windows owner-only access.
+An `icacls` inspection of a disposable key showed inherited full control for
+SYSTEM, Administrators, and OWNER RIGHTS, with no additional grants displayed.
+This observation does not provision or certify separation from the log account.
+
+Full suites used `python -m pytest -q -rs --tb=short --basetemp FRESH_PATH`.
+The installed Ubuntu suite ran outside the checkout with `PYTHONPATH` removed,
+`-c /dev/null`, the snapshot tests, and native `/tmp` test storage. Existing CLI
+subprocess unit tests intentionally use snapshot source; two separate installed
+console-script executions validate the real entry point. Installed Windows runs:
+
+```powershell
+& "$reviewRoot\venv\Scripts\tamperlog.exe" experiment --output-dir "$reviewRoot\runs" --event-count 50 --seed 42
+```
+
+Here `$reviewRoot` is the external temporary validation root:
+`C:\Users\rober\AppData\Local\Temp\tamperlog-final-review-257b88f3985e4de585f22944967d434d`.
+It contains `source-manifest.json`, `validation.json`, `final-pytest.xml`,
+`linux-pytest.xml`, the isolated source/environment, and reports at
+`runs/run-mg7w61cv/results.json` and `runs/run-aazyqzvt/results.json`.
+The snapshot includes uncommitted runtime/test fixes; later documentation edits
+do not change those validated module bytes. This location is temporary, not a
+durable submission archive. Never export its private key stores or entire runs.
+
+### Findings and corrections
+
+- **Medium: checkpoint immutability race.** The regression pauses a trusted
+  writer after the existence check, lets another writer publish tag A, then
+  resumes the first writer with conflicting tag B. Original `os.replace`
+  returns success and replaces A. Unique temporary files plus atomic `os.link`
+  now reject conflicting publication and permit identical idempotent retries.
+  This is a trusted concurrency defect, not a demonstrated storage-attacker exploit.
+- **High for Windows correctness/availability: binary key translation.**
+  Persisting synthetic `bytes(range(32))` changed LF into CRLF at offset 10.
+  Binary file opening now preserves all 32 bytes. This did not establish HMAC
+  forgery; the loader failed closed on the wrong length.
+- **Low: short writes and failed persistence.** Both providers ignored the count
+  from `os.write`; interrupted creation left retry-blocking files. Write loops
+  now complete short writes and reject zero progress; exception paths close
+  descriptors and remove owned incomplete key/temp files. Injected write,
+  flush, and checkpoint-publication failures exercise cleanup and retry.
+- **Low: ambiguous trusted JSON.** Duplicate checkpoint fields were accepted
+  with last-value semantics. Loading now rejects duplicates and invalid stored
+  tags, including on idempotent create. Regression tests exercise these cases.
+- **Environment/deployment gap:** Windows ACL protection is not provisioned or
+  certified by `0600`/`0700`. Configure protected storage separately. Do not claim
+  native Windows security-isolation readiness from the functional experiment.
+
+Hard-link publication requires filesystem support; it raises on unsupported
+storage. It protects complete, non-replacing publication, not power-loss
+durability of directory entries. Abrupt process termination can leave temporary
+files or a partially created key. Checkpoint retrieval is not a locked snapshot:
+use quiescent, protected stores and one trusted logger per stream. Matching stale
+prefixes, hostile trusted-directory mutation, and compromised keys remain outside
+the established guarantees. No entropy proof or OS credential isolation was
+established by these tests. All validation was AI-assisted and tool-executed;
+human academic review is still required.
+
+### Human review and merge sequence
+
+PR #4 is not recommended for merge as-is: it lacks the reviewed corrections.
+Julian approved committing the reviewed persistence, test, and documentation
+changes, publishing this integration branch, and opening a replacement PR to main.
+Refresh remote heads and repeat validation if the source base changes. The
+integration branch contains all six original Ashton commits plus the reviewed fix
+commit. Coordinate superseding PR #4 with the team. Use a merge commit to preserve
+contributor history, without squash, rebase, or a push to Ashton's branch.
+
+After the approved integration merge, update a clean local main using
+`git fetch origin`, `git switch main`, and `git pull --ff-only origin main`.
+Record its new commit, run the complete suite with fresh external test storage,
+install that exact revision in a fresh environment, and run the 50-event/seed-42
+installed CLI twice. Require the four valid baselines and matrix in
+[experiments](experiments.md), retain reviewed nonsecret evidence, and update
+report/presentation revision references. Merging either PR remains unauthorized;
+coordinate superseding PR #4 without deleting Ashton's branch.
+
 ## Revision and scope
 
 Use the reviewed Sprints 01-05 publication revision of `julian/testing` and

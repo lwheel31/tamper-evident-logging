@@ -174,3 +174,22 @@ def test_real_checkpoint_completeness(tmp_path, real_checkpoint_log, damage):
         assert "trusted checkpoint" in result.error
     assert path.read_bytes() == evidence
     assert [asdict(cp) for cp in _real_call(checkpoints.load_checkpoints, identity, original_store)] == snapshot
+
+
+def test_real_independent_identity_rejects_other_log(real_checkpoint_log):
+    path, keys, store, identity, trusted = real_checkpoint_log
+    for cp in trusted:
+        checkpoints.create_checkpoint("other-log", cp.seq, cp.tag, store)
+    result = verify_hmac_checkpoint(path, keys, store, expected_log_id="other-log")
+    assert not result.valid and result.first_bad_seq == 0
+    assert "expected identity" in result.error
+    assert verify_hmac_checkpoint(path, keys, store, expected_log_id=identity).valid
+
+
+def test_real_empty_checkpoint_store_cannot_authorize_log(tmp_path, real_checkpoint_log):
+    path, keys, store, identity, trusted = real_checkpoint_log
+    empty = tmp_path / "empty-checkpoints"
+    empty.mkdir()
+    with pytest.raises(RuntimeError, match="nonempty trusted checkpoint list"):
+        verify_hmac_checkpoint(path, keys, empty, expected_log_id=identity)
+    assert verify_hmac_checkpoint(path, keys, store, expected_log_id=identity).valid

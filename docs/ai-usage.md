@@ -91,3 +91,12 @@ Julian's direction. Future entries should use the same six fields.
 - Generated: README/interface/reproduction documentation, five real-store test scenarios, artifact ignore rule, final audit, and revised AI disclosures.
 - Design decisions: Julian required skips only for known unimplemented dependencies, unchanged teammate modules, secret/artifact screening, and separate measured/mocked results.
 - Validation: Local and isolated non-editable suites both report **436 passed, 11 skipped**; five real-store scenarios are blocked and six teammate placeholders remain. Installed CLI repeats measured **8 MISSED / 8 BLOCKED** with matching hashes. Historical-key persistence, complete/current checkpoints, and physical trust separation still require real integration validation.
+
+## 2026-11-25: Final persistence and integration review
+
+- Tool: OpenAI Codex.
+- Operator: Julian Roberts.
+- Task: Independently reproduce Ashton's persistence behavior, validate the checkpoint race, and prepare local corrections and submission evidence.
+- Generated: Deterministic concurrency/binary-key regressions; narrow key/checkpoint write and cleanup fixes; strict checkpoint JSON checks; real-store identity/empty-store tests; explicit UTF-8 export assertion; documentation corrections and external validation scripts/receipts. Ashton's implementation and all contributor history are preserved.
+- Design decisions: Julian required unchanged public interfaces, real persistence/installed CLI validation, no hidden failures, and human approval before committing or publishing. Codex selected unique temporary files and atomic non-replacing hard links; filesystem support and Windows ACL limitations remain explicit.
+- Validation: Original Windows suite **465 passed, 6 failed**. Corrected Windows suite **482 passed, 3 failed, no skips** (two missing symlink privileges and the POSIX permission assertion). Isolated Ubuntu installed suite **485 passed, no skips**. Two installed Windows CLI runs measured **7 DETECTED / 9 MISSED**, matching all 16 expected cells with valid baselines/controls and checked evidence hashes. All execution and review described here were AI-assisted; no independent student verification is claimed. Julian subsequently approved committing and publishing these corrections in a new integration PR, with a supersession note on PR #4. Approval to merge either PR has not been given.

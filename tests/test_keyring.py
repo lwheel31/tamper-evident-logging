@@ -67,3 +67,35 @@ def test_corrupted_key_is_an_error(tmp_path):
 
 def test_list_keys_empty_store(tmp_path):
     assert keyring.list_keys(tmp_path / "missing") == []
+
+
+def test_key_bytes_are_persisted_without_text_translation(tmp_path, monkeypatch):
+    # Exercise Windows CRT newline translation deterministically, not by chance.
+    expected = bytes(range(32))
+    monkeypatch.setattr(keyring.secrets, "token_bytes", lambda count: expected)
+    keyring.generate_key("binary", tmp_path)
+    assert (tmp_path / "binary.key").read_bytes() == expected
+    assert keyring.load_key("binary", tmp_path) == expected
+
+
+def test_key_short_writes_are_completed(tmp_path, monkeypatch):
+    real_write = keyring.os.write
+    monkeypatch.setattr(keyring.os, "write", lambda fd, data: real_write(fd, data[:3]))
+    keyring.generate_key("short-write", tmp_path)
+    assert len(keyring.load_key("short-write", tmp_path)) == 32
+
+
+@pytest.mark.parametrize("failure", ["zero-write", "fsync"])
+def test_failed_key_creation_is_clean_and_retryable(tmp_path, monkeypatch, failure):
+    with monkeypatch.context() as patch:
+        if failure == "zero-write":
+            patch.setattr(keyring.os, "write", lambda fd, data: 0)
+        else:
+            def fail_sync(fd):
+                raise OSError("injected flush failure")
+            patch.setattr(keyring.os, "fsync", fail_sync)
+        with pytest.raises(OSError):
+            keyring.generate_key("retry", tmp_path)
+    assert not (tmp_path / "retry.key").exists()
+    keyring.generate_key("retry", tmp_path)
+    assert len(keyring.load_key("retry", tmp_path)) == 32

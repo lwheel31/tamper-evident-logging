@@ -71,7 +71,7 @@ def test_complete_mocked_matrix_and_export(tmp_path, stores):
                for r in rows_for(report, "D"))
     assert rows_for(report, "D")[-1]["first_bad_seq"] == 25
     assert json.loads((run / "results.json").read_text()) == report
-    assert (run / "matrix.md").read_text() == experiment.render_matrix(report)
+    assert (run / "matrix.md").read_text(encoding="utf-8") == experiment.render_matrix(report)
     assert SECRET.decode() not in (run / "results.json").read_text()
     assert SECRET.decode() not in (run / "matrix.md").read_text()
     assert all("trusted/" not in path for row in report["results"] for path in row["artifacts"])

@@ -1,9 +1,31 @@
 # Reproducible logging experiments
 
 The runner evaluates four attacks against four fixed verification modes. Real
-A/B experiments run independently of the pending security persistence modules.
-C/D follow the complete logging/verification path when those modules are available;
+A/B experiments run independently of the security persistence modules.
+C/D follow the complete logging/verification path with Ashton's implemented stores;
 no production fallback keys or mocked results are supplied.
+
+## Observed integrated results — 2026-11-25
+
+On local `integration-review/ashton-security`, based on `228d8fbd` plus
+uncommitted review corrections, two non-editably installed Windows CLI runs
+with 50 events and seed 42 produced the following measured results:
+
+| Attack | A | B | C | D |
+|---|---|---|---|---|
+| Modify | MISSED | MISSED | DETECTED | DETECTED |
+| Delete | MISSED | MISSED | DETECTED | DETECTED |
+| Reorder | MISSED | MISSED | DETECTED | DETECTED |
+| Truncate | MISSED | MISSED | MISSED | DETECTED |
+
+All four untouched baselines and all 16 post-attack controls verified 50 records.
+All original/input and exported artifact hashes were checked; D retained all 50
+matching anchors. Repeats matched event/parameter/source hashes, A/B artifact
+bytes, C/D event content, and outcomes. Fresh random HMAC keys differed as expected.
+See [the dated review receipt](reproduction.md#integration-review--2026-11-25).
+The November 17 evidence, readiness assessments, and proposed PR text below are
+historical; their persistence blockers and publication instructions are superseded
+by this review. They remain as the record of the earlier partial experiment.
 
 ## Running
 

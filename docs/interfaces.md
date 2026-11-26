@@ -156,7 +156,17 @@ states. Known verifier dependency errors follow the current `cannot verify:`
 convention; arbitrary runtime exceptions are not automatically dependency errors.
 See [methodology and observed results](experiments.md).
 
-## Persistence interfaces — stubs; team implementation/agreement pending
+## Persistence interfaces — implemented; integration corrections under review
+
+Ashton's PR #4 implements these APIs. The November 25 local review adds binary
+key writes, complete-write handling and failure cleanup, and immutable checkpoint
+publication through unique temporary files and an atomic non-replacing hard link.
+Same-directory hard-link support is required; unsupported filesystems raise
+rather than falling back to replacement. Duplicate checkpoint JSON fields and
+invalid stored tags are rejected. Public signatures and file formats are unchanged.
+Key files contain exactly 32 random bytes. POSIX creation modes are `0700` for
+new store directories and `0600` for files; existing directory permissions are
+not tightened. These modes do not provision Windows ACL isolation.
 
 | Interface | Required integration behavior |
 |---|---|
@@ -178,7 +188,9 @@ parameters do not enforce them automatically.
 
 The checkpoint API has no independent freshness/high-water mark. Complete and
 current retrieval is a trusted-backend obligation; matching old log/checkpoint
-prefixes can pass if it is violated. Directory separation alone is not physical
+prefixes can pass if it is violated. The directory loader does not lock a changing
+store or certify a high-water mark; callers must capture quiescent, protected
+stores. Directory separation alone is not physical
 trust separation. Stable artifacts, protected stores, and the approved
 write/checkpoint-window assumption remain necessary. No typed exception redesign,
 new record field, or persistence implementation is introduced by this document.

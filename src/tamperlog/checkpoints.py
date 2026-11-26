@@ -11,8 +11,10 @@ log, the trusted store still has checkpoints for the missing records, so the
 verifier can report them as missing.
 
 Storage format: one JSON file per checkpoint,
-<store_path>/<log_id>_cp_<seq>.json. Each file is written to a temp file
-first and then renamed, so a crash can't leave a half-written checkpoint.
+<store_path>/<log_id>_cp_<seq>.json. Each file is fully written and flushed to a
+unique temporary file, then published with a non-replacing hard link. The store
+must support same-directory hard links (e.g. NTFS); unsupported storage raises.
+This prevents partial publication, not loss of directory entries on power failure.
 
 Threat model: the attacker CANNOT modify or delete checkpoints.
 
@@ -24,6 +26,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -73,16 +76,30 @@ def create_checkpoint(log_id: str, seq: int, tag: str, store_path: Path) -> Chec
             return checkpoint
         raise FileExistsError(f"conflicting checkpoint already exists for {log_id!r} seq {seq}")
 
-    # Write to a temp file, flush to disk, then rename into place (atomic).
+    # Each writer owns its temp file. A hard link atomically publishes the
+    # complete file only if the destination is absent, unlike os.replace().
     data = json.dumps({"log_id": log_id, "seq": seq, "tag": tag}, sort_keys=True)
-    temp = store / f".{path.name}.tmp"
-    fd = os.open(temp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+    fd, temp_name = tempfile.mkstemp(prefix=f".{path.name}.", suffix=".tmp", dir=store)
+    temp = Path(temp_name)
     try:
-        os.write(fd, data.encode("utf-8"))
-        os.fsync(fd)
+        try:
+            remaining = memoryview(data.encode("utf-8"))
+            while remaining:
+                written = os.write(fd, remaining)
+                if written <= 0:
+                    raise OSError("checkpoint write made no progress")
+                remaining = remaining[written:]
+            os.fsync(fd)
+        finally:
+            os.close(fd)
+        try:
+            os.link(temp, path)
+        except FileExistsError:
+            if _read_checkpoint(path) != checkpoint:
+                raise FileExistsError(
+                    f"conflicting checkpoint already exists for {log_id!r} seq {seq}") from None
     finally:
-        os.close(fd)
-    os.replace(temp, path)
+        temp.unlink(missing_ok=True)
     return checkpoint
 
 
@@ -90,10 +107,21 @@ def _read_checkpoint(path: Path) -> Checkpoint:
     """Read one checkpoint file. Raises ValueError if it's malformed."""
     if path.is_symlink():
         raise ValueError(f"checkpoint is a symlink: {path.name}")
-    data = json.loads(path.read_text(encoding="utf-8"))
+    def unique_object(pairs):
+        data = {}
+        for key, value in pairs:
+            if key in data:
+                raise ValueError(f"duplicate checkpoint field: {key}")
+            data[key] = value
+        return data
+
+    data = json.loads(path.read_text(encoding="utf-8"), object_pairs_hook=unique_object)
     if (not isinstance(data, dict) or set(data) != {"log_id", "seq", "tag"}
             or not isinstance(data["log_id"], str) or type(data["seq"]) is not int
             or not isinstance(data["tag"], str)):
+        raise ValueError(f"malformed checkpoint file: {path.name}")
+    _check_log_id(data["log_id"])
+    if data["seq"] < 0 or _TAG.fullmatch(data["tag"]) is None:
         raise ValueError(f"malformed checkpoint file: {path.name}")
     return Checkpoint(data["log_id"], data["seq"], data["tag"])
 
