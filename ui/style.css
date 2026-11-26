@@ -2,7 +2,7 @@
 .stApp, [data-testid="stHeader"] { background: #0c111b; color: #e8edf5; }
 [data-testid="stSidebar"] { background: #111a27; border-right: 1px solid #253246; }
 [data-testid="stSidebar"] * { color: #e8edf5; }
-.stApp .block-container { max-width: 1480px; padding-top: 2.8rem; padding-bottom: 2rem; }
+.stApp .block-container { max-width: 1480px; padding-top: 5rem; padding-bottom: 2rem; }
 .stApp h1 { font-size: 3rem; letter-spacing: -.045em; line-height: 1.1; }
 .stApp h2 { font-size: 1.7rem; letter-spacing: -.025em; }
 .stApp h3 { font-size: 1.2rem; }

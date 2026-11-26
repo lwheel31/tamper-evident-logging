@@ -6,7 +6,6 @@ The existing runner performs every logging, attack, and verification operation.
 
 from __future__ import annotations
 
-from collections import Counter
 from html import escape
 import json
 from pathlib import Path
@@ -53,17 +52,6 @@ def overview(report: dict | None) -> None:
     with right, st.container(border=True):
         st.markdown("### Attacker cannot")
         st.markdown("Access HMAC keys · modify trusted checkpoints · control logger or verifier code.")
-    st.caption("Trusted stores require independent protection. A separate folder alone does not establish that boundary. "
-               "The model assumes no attacker action between a record write and its checkpoint.")
-    if report:
-        counts = Counter(row["outcome"] for row in report["results"])
-        a, b, c = st.columns(3)
-        a.metric("Actual attack cases", len(report["results"]))
-        b.metric("Detected", counts["DETECTED"])
-        c.metric("Missed", counts["MISSED"])
-        st.caption("Explore Live Attack Demo for the evidence, then Results for the complete comparison.")
-    else:
-        empty_state()
 
 
 def evidence_table(window: list[tuple[int, dict]], incident: int, *, mark_focus: bool = False) -> None:
@@ -229,7 +217,7 @@ def results_view(report: dict) -> None:
 with st.sidebar:
     st.html('<div class="eyebrow">ITIS 6200 · LIVE DEMONSTRATION</div>')
     st.markdown("## TamperLab")
-    section = st.radio("Presentation", ["Overview", "Live Attack Demo", "Code", "Results"], key="section")
+    section = st.radio("Presentation", ["Overview", "Live Attack Demo", "Results"], key="section")
     st.divider()
     with st.expander("Experiment Settings"):
         event_count = st.number_input("Event count", min_value=4, max_value=500, value=50, step=1,
@@ -239,11 +227,8 @@ with st.sidebar:
     st.caption("Runs the existing engine once. Navigation and selectors reuse the recorded run.")
 
 if section == "Overview":
-    st.html('<div class="eyebrow">SECURITY AUDIT LOGS / A CONTROLLED EXPERIMENT</div>')
     st.title("Tamper-Evident Logging")
     st.html('<div class="subtitle">Comparing log integrity defenses against storage-only tampering</div>')
-    st.write("We generate the same synthetic security events under four logging mechanisms, tamper with the stored evidence, "
-             "and measure whether verification detects the attack.")
 else:
     st.html(f'<div class="compact-title">Tamper-Evident Logging <span>{h(section.upper())}</span></div>')
 
@@ -263,18 +248,17 @@ if run_clicked:
 report = st.session_state.get("demo_report")
 if st.session_state.get("demo_run_error"):
     st.error("The experiment could not complete. No new result is available. Check the local environment and try again.")
-if report:
-    params = report["parameters"]
-    st.caption(f"RECORDED RUN · {Path(report['run_directory']).name} · {params['event_count']} events · seed {params['seed']} "
-               "· fresh run only when Run Experiment is clicked")
-else:
-    st.caption("NO RUN YET · Defaults: 50 events / seed 42")
+if section != "Overview":
+    if report:
+        params = report["parameters"]
+        st.caption(f"RECORDED RUN · {Path(report['run_directory']).name} · {params['event_count']} events · seed {params['seed']} "
+                   "· fresh run only when Run Experiment is clicked")
+    else:
+        st.caption("NO RUN YET · Defaults: 50 events / seed 42")
 st.divider()
 
 if section == "Overview":
     overview(report)
-elif section == "Code":
-    code_view()
 elif not report:
     empty_state()
 elif section == "Live Attack Demo":
@@ -282,4 +266,5 @@ elif section == "Live Attack Demo":
 else:
     results_view(report)
 
-st.caption("ITIS 6200 · Lucas: logging & events · Ashton: keys & checkpoints · Julian: verification, attacks & experiments")
+if section != "Overview":
+    st.caption("ITIS 6200 · Lucas: logging & events · Ashton: keys & checkpoints · Julian: verification, attacks & experiments")
