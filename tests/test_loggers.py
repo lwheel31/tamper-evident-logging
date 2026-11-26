@@ -91,10 +91,13 @@ def test_short_key_rejected(tmp_path):
         HMACChainLogger("x", tmp_path / "c.jsonl", "k1", key=b"short")
 
 
-@pytest.mark.skip(reason="PENDING: needs Ashton's checkpoints.create_checkpoint")
 def test_hmac_checkpoint_logger(tmp_path):
+    from tamperlog import checkpoints
     path = tmp_path / "d.jsonl"
     store = tmp_path / "trusted"
-    write_all(HMACCheckpointLogger("log-d", path, "k1", store, key=KEY_A), n=10)
-    # TODO (Ashton): load_checkpoints("log-d", store) has one entry per record,
-    # and the last one matches the final record's seq and tag.
+    written = write_all(HMACCheckpointLogger("log-d", path, "k1", store, key=KEY_A), n=10)
+    # One checkpoint per record; the last one matches the final record.
+    trusted = checkpoints.load_checkpoints("log-d", store)
+    assert [cp.seq for cp in trusted] == list(range(10))
+    assert [cp.tag for cp in trusted] == [r.tag for r in written]
+    assert trusted[-1].seq == written[-1].seq and trusted[-1].tag == written[-1].tag

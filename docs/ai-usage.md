@@ -1,93 +1,40 @@
 # AI Usage Log
 
-This document records all uses of AI tools in the development of this project,
-per ITIS 6200 academic integrity requirements.
+This document records AI assistance used during development of the ITIS 6200 Tamper-Evident Logging project.
 
-## 2026-11-15 — Initial Scaffold Generation
+## 2026-11-15 — Initial Scaffold
 
-**Tool:** Claude Code (Claude Opus 4.6)  
-**Operator:** Lucas Wheeler  
-**Prompt:** The full "Codex Prompt" stored in this session (see below).  
-**Output:** Project folder structure, module stubs with function signatures and
-`NotImplementedError` placeholders, test file skeletons, README, pyproject.toml,
-and this AI-usage log.  
-**What was NOT generated:** No security logic, no hash/HMAC computations, no
-attack implementations, no experiment results. All `raise NotImplementedError`
-blocks must be filled by students.
+- **Tool:** Claude Code (Claude Opus 4.6)
+- **Operator:** Lucas Wheeler
+- **Task:** Create the initial repository structure, module interfaces, documentation, and test skeletons.
+- **Generated:** Project folders, module stubs with `NotImplementedError` placeholders, test skeletons, README, `pyproject.toml`, and initial documentation.
+- **Scope:** No security mechanisms, attack implementations, or experiment results were implemented during this session.
 
-### Codex Prompt Summary
+## 2026-11-16 — Logging Implementation
 
-The prompt instructed Claude to:
-- Inspect the empty repository and propose a scaffold
-- Create the folder layout: `docs/`, `src/tamperlog/`, `tests/`, `examples/`
-- Create module files with function signatures and TODOs
-- Document the threat model and record format
-- Assign ownership: Lucas (events, Modes A–C), Ashton (keys, checkpoints, Mode D), Julian (verification, attacks, experiments)
-- NOT implement security logic, complete attacks, or produce results
+- **Tool:** Claude
+- **Operator:** Lucas Wheeler
+- **Task:** Implement event generation, serialization hardening, and logging Modes A-C with Mode D checkpoint integration.
+- **Generated:** `events.py`, serialization updates, logger implementations, and related tests.
+- **Design choices:** Sequence numbers begin at zero, chained logs use a public genesis tag, signed data uses deterministic serialization, and existing logs are not overwritten.
+- **Validation:** `pytest` reported **21 passed, 17 pending** while remaining team modules were unfinished.
 
-### Student Review Required
+## 2026-11-17 — Verification, Attacks, and Experimentation
 
-- [ ] All team members review schema.py and serialization.py
-- [ ] Confirm JSONL record format and data types
-- [ ] Confirm canonical serialization approach
-- [ ] Review threat model assumptions in README
-- [ ] Verify no security logic was pre-implemented
+- **Tools:** ChatGPT and OpenAI Codex
+- **Operator:** Julian Roberts
+- **Task:** Implement verification for Modes A-D, the four tampering attacks, experiment automation, CLI integration, testing, and reproducibility documentation.
+- **Generated:** `verifier.py`, `attacks.py`, `experiment.py`, supporting CLI functionality, regression and adversarial tests, integration tests, and documentation.
+- **Design choices:** Julian directed preservation of existing interfaces, historical-key verification, trusted Mode D identity, deterministic evidence-preserving attacks, public SHA-256 reconstruction, and baseline/control validation.
+- **Validation:** Before persistence integration, testing reached **436 passed, 11 skipped**. Real Modes A/B produced the expected `MISSED` results while C/D remained blocked pending key and checkpoint persistence.
 
----
+## 2026-11-25 — Final Integration Review
 
-*Future AI interactions should be logged below with date, tool, operator,
-prompt summary, and what was generated vs. what students wrote independently.*
+- **Tools:** ChatGPT and OpenAI Codex
+- **Operator:** Julian Roberts
+- **Task:** Review the completed key/checkpoint persistence implementation and validate the integrated system.
+- **Generated:** Targeted regression tests, narrowly scoped persistence corrections, integration checks, and documentation updates.
+- **Review findings:** Testing identified Windows binary-key write behavior, a concurrent checkpoint publication issue, incomplete write handling, and stricter checkpoint parsing requirements.
+- **Validation:** The corrected implementation reported **485 passed, 0 skipped** in Ubuntu and **482 passed, 3 platform-specific failures** on Windows. Repeated installed CLI runs reproduced the expected 16-cell experiment matrix.
 
-## 2026-11-16: Lucas's modules (Claude)
-- Tool: Claude. Task: implement events.py, serialization.py hardening, and loggers.py Modes A-C plus the Mode D append that calls Ashton's checkpoints module; write matching tests.
-- Design choices to review as a team: events yield (timestamp, event_type, details); seq starts at 0; first chained record uses a public GENESIS_TAG; signed data rejects floats and non-string keys; loggers refuse to overwrite an existing log.
-- Verified by: running pytest (21 passed, 17 pending on other teammates' modules). Lucas to review and explain each module in his own words before merge.
-
-For Sprints 01–05, ChatGPT assisted with brainstorming and workflow. OpenAI
-Codex generated the code, tests, reviews, and documentation listed below under
-Julian's direction. Future entries should use the same six fields.
-
-## 2026-11-17: Sprint 01 — Plaintext and SHA-256 verification
-
-- Tool: OpenAI Codex.
-- Operator: Julian Roberts.
-- Task: Implement and remediate Mode A/B verification.
-- Generated: Verifier logic, regression tests, canonical-byte vectors, attack probes, and documentation.
-- Design decisions: Julian required the existing result interface and first-failure reporting; directed strict UTC syntax and finite-float compatibility for plaintext after AI review found defects.
-- Validation: pytest **213 passed, 14 skipped** after remediation. Tests demonstrate plaintext edits, public rehashing, and valid tail truncation passing; unrecomputed hash changes fail.
-
-## 2026-11-17: Sprint 02 — HMAC and checkpoint verification
-
-- Tool: OpenAI Codex.
-- Operator: Julian Roberts.
-- Task: Implement Modes C/D and audit substitution, replay, rotation, and unsafe key lookup.
-- Generated: HMAC/checkpoint verifier logic, tests with mocked stores, an independent HMAC vector, adversarial probes, and interface requirements.
-- Design decisions: Julian required historical-key lookup, safe identifiers, fail-closed dependencies, and per-record checkpoints; approved the AI-proposed trusted `expected_log_id` parameter.
-- Validation: pytest **305 passed, 11 skipped**. Mocked-store tests cover rotation, missing keys, substitution, and truncation. Real persistence remained pending; replaying matching stale log/checkpoint prefixes confirmed the trusted-retrieval limitation.
-
-## 2026-11-17: Sprint 03 — Storage-only attacks
-
-- Tool: OpenAI Codex.
-- Operator: Julian Roberts.
-- Task: Implement modification, deletion, reordering, and truncation attacks.
-- Generated: Attack helpers, explicit sequence repair/public SHA-256 reconstruction, tests, adversarial probes, and documentation.
-- Design decisions: Julian required reproducible separate copies, no overwrites or key/checkpoint access, and preserved HMAC tags. AI-proposed repair/reconstruction helpers remain separate from basic attacks.
-- Validation: pytest **407 passed, 7 skipped**. Tests check contents, ordering, labels, source preservation, invalid requests, and verifier outcomes; C/D store dependencies were mocked.
-
-## 2026-11-17: Sprint 04 — Experiment automation
-
-- Tool: OpenAI Codex.
-- Operator: Julian Roberts.
-- Task: Orchestrate all 16 mode/attack combinations and implement the experiment CLI.
-- Generated: Runner, CLI wiring, orchestration tests, results exports, methodology, and PR proposal.
-- Design decisions: Julian required one seeded event stream, independent attack copies, A sequence repair/B public reconstruction, trusted mode/identity selection, and baseline/control checks. Production uses real store interfaces.
-- Validation: pytest **436 passed, 7 skipped**. Real 50-event/seed-42 runs measured **8 MISSED A/B cells and 8 BLOCKED C/D cells** with matching repeat evidence. Full C/D paths passed with test doubles; these were not integrated measurements.
-
-## 2026-11-17: Sprint 05 — Integration readiness and reproduction
-
-- Tool: OpenAI Codex.
-- Operator: Julian Roberts.
-- Task: Audit the workstream, prepare real-store integration gates, validate clean installation, and consolidate disclosures.
-- Generated: README/interface/reproduction documentation, five real-store test scenarios, artifact ignore rule, final audit, and revised AI disclosures.
-- Design decisions: Julian required skips only for known unimplemented dependencies, unchanged teammate modules, secret/artifact screening, and separate measured/mocked results.
-- Validation: Local and isolated non-editable suites both report **436 passed, 11 skipped**; five real-store scenarios are blocked and six teammate placeholders remain. Installed CLI repeats measured **8 MISSED / 8 BLOCKED** with matching hashes. Historical-key persistence, complete/current checkpoints, and physical trust separation still require real integration validation.
+AI assistance supported implementation, testing, review, and documentation. Each team member is responsible for understanding and explaining their respective contributions and the project's security reasoning.
