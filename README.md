@@ -4,11 +4,7 @@ A synthetic cybersecurity experiment comparing plaintext, SHA-256 chaining,
 HMAC chaining, and HMAC with trusted checkpoints against a storage attacker.
 
 **Current status:** All loggers, verifiers, four required attacks, experiment
-orchestration, and the experiment CLI are implemented. Ashton's persistence is
-implemented on the integration-review branch. Two installed 50-event/seed-42
-runs exercised all four modes with real disposable stores. Local persistence
-corrections are approved for publication in an integration PR; merging remains
-subject to human approval. PR #4 is not merged.
+orchestration, and the experiment CLI are implemented. Key and checkpoint persistence is implemented and integrated. Two installed 50-event/seed-42 runs exercised all four modes with real disposable stores, and the corrected implementation was validated on Windows and Ubuntu/WSL.
 
 ## Install and run
 
@@ -59,7 +55,7 @@ identity; record contents never select those security assumptions.
 |---|---|
 | `events.py`, `loggers.py` | Lucas: deterministic events, A-C logging, and D append calls into checkpoints. |
 | `schema.py`, `serialization.py` | Shared contracts: eight-field JSONL records and deterministic canonical bytes. |
-| `keyring.py`, `checkpoints.py` | Ashton: historical key persistence and trusted per-record anchors; local integration corrections under review. |
+| `keyring.py`, `checkpoints.py` | Ashton: historical key persistence and trusted per-record anchors; integration corrections included. |
 | `verifier.py`, `attacks.py`, `experiment.py` | Julian: verification, storage-only attacks, experiment execution, and integration. |
 | CLI and shared reviews | Team collaboration; experiment subcommand implemented. |
 
