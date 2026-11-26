@@ -30,10 +30,10 @@ tamperlog experiment --output-dir /tmp/tamperlog-runs --event-count 50 --seed 42
 ```
 
 On Windows, use the appropriate Python launcher and `.venv\Scripts` activation;
-the commands above describe the validated macOS workflow. For a non-editable,
+the commands above describe the general workflow; validation was performed on macOS, Windows, and Ubuntu/WSL as documented below. For a non-editable,
 isolated package test outside the checkout, follow [clean reproduction](docs/reproduction.md).
 The source repository is [lwheel31/tamper-evident-logging](https://github.com/lwheel31/tamper-evident-logging).
-Use the reviewed publication revision of `julian/testing` and record
+Use the reviewed integration revision and record
 `git rev-parse HEAD`. Historical revision `728dbce` contains Sprints 01-03;
 it does not contain the experiment runner or Sprint 05 reproduction work.
 
