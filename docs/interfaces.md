@@ -1,10 +1,11 @@
-# Implemented interfaces and pending integration agreements
+# Implemented interfaces and trusted-store requirements
 
-This document describes current branch behavior; code remains the signature
-source of truth. Implemented behavior is not a claim of team-wide ratification
-or completed persistence integration. Julian explicitly approved Mode D's
-required `expected_log_id` argument in Sprint 02. Storage policy and the
-constraints listed below still require joint review with Ashton/Lucas.
+This document describes the integrated project baseline on `main`, including
+key/checkpoint persistence and the reviewed corrections merged through PR #5.
+Code remains the signature source of truth. Julian explicitly approved Mode D's
+required `expected_log_id` argument in Sprint 02. The storage policies and
+constraints below remain requirements; integration does not certify deployment
+isolation or filesystem access controls.
 
 ## Records and serialization — implemented
 
@@ -156,9 +157,10 @@ states. Known verifier dependency errors follow the current `cannot verify:`
 convention; arbitrary runtime exceptions are not automatically dependency errors.
 See [methodology and observed results](experiments.md).
 
-## Persistence interfaces — implemented; integration corrections under review
+## Persistence interfaces — implemented and integrated
 
-Ashton's PR #4 implements these APIs. The November 25 local review adds binary
+Ashton's key/checkpoint persistence and the reviewed November 25 corrections
+are merged into `main` through PR #5. The integrated implementation includes binary
 key writes, complete-write handling and failure cleanup, and immutable checkpoint
 publication through unique temporary files and an atomic non-replacing hard link.
 Same-directory hard-link support is required; unsupported filesystems raise
@@ -168,7 +170,7 @@ Key files contain exactly 32 random bytes. POSIX creation modes are `0700` for
 new store directories and `0600` for files; existing directory permissions are
 not tightened. These modes do not provision Windows ACL isolation.
 
-| Interface | Required integration behavior |
+| Interface | Required persistence behavior |
 |---|---|
 | `generate_key(key_id, store_path) -> None` | Persist cryptographically random bytes, length >= 32; no overwrite or identifier alias collision. |
 | `load_key(key_id, store_path) -> bytes` | Return exact historical bytes. Missing ID raises `KeyError`; unavailable/invalid storage raises an error. No regeneration, default key, or current-key substitution. |
@@ -183,7 +185,7 @@ remaining characters letters/digits/underscore/hyphen; dots, separators, glob
 syntax, nulls, whitespace, Unicode aliases, and CON/PRN/AUX/NUL/COM1-9/LPT1-9
 (case-insensitive) are excluded. Providers must validate independently of the
 verifier and enforce containment, safe symlink behavior, permissions, and
-immutable history. Agree on these constraints before integration; logger string
+immutable history. These constraints apply to trusted stores; logger string
 parameters do not enforce them automatically.
 
 The checkpoint API has no independent freshness/high-water mark. Complete and

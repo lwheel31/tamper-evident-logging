@@ -16,6 +16,7 @@ authors = [
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0"]
+ui = ["streamlit>=1.39"]
 
 [project.scripts]
 tamperlog = "tamperlog.cli:main"

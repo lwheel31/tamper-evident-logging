@@ -1,11 +1,10 @@
-"""Command-line interface.
+"""Command-line interface for the reproducible experiment.
 
-Proposed commands (awaiting team approval):
-    tamperlog generate   — create synthetic events and log them in all modes
-    tamperlog verify     — verify a specific log file
-    tamperlog attack     — apply a named attack to a log file
+Implemented command:
     tamperlog experiment — run the full comparison experiment
-    tamperlog keys       — manage HMAC keys (generate, rotate, list)
+
+Other operations are available through the Python APIs where implemented;
+generate, verify, attack, and keys are not registered CLI subcommands.
 
 Owner: ALL
 """
@@ -19,10 +18,7 @@ from . import experiment
 
 
 def main() -> None:
-    """Entry point for the CLI.
-
-    TODO (ALL): Wire up subcommands to the appropriate module functions.
-    """
+    """Parse experiment options and invoke the existing experiment runner."""
     parser = argparse.ArgumentParser(
         prog="tamperlog",
         description="Tamper-evident logging — ITIS 6200 project",
@@ -33,10 +29,6 @@ def main() -> None:
     experiment_parser.add_argument("--output-dir", type=Path, default=Path("experiment-results"))
     experiment_parser.add_argument("--event-count", type=int, default=50)
     experiment_parser.add_argument("--seed", type=int, default=42)
-
-    # TODO (Lucas): Add 'generate' subcommand
-    # TODO (Julian): Add 'verify' and 'attack' subcommands
-    # TODO (Ashton): Add 'keys' subcommand
 
     args = parser.parse_args()
 
