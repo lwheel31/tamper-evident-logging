@@ -4,7 +4,51 @@ This deck displays exported slide images around the existing, separately running
 TamperLab Streamlit application. The HTML is a shell, not a recreation of the
 PowerPoint design. Missing PNGs show obvious placeholder panels.
 
-## Start both servers
+## macOS quick start (presentation machine)
+
+Use **Terminal** on the Mac, not PowerShell. Install Python **3.10 or newer**,
+and start from the repository root. For a fresh checkout:
+
+```sh
+git clone https://github.com/lwheel31/tamper-evident-logging.git
+cd tamper-evident-logging
+python3 --version
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install -e ".[ui]"
+```
+
+If this repository is already cloned on the Mac, update its `main` branch
+(`git switch main` and `git pull --ff-only origin main`) before setting up
+the environment. The Mac environment is separate from your Windows `.venv`.
+
+Open **two Terminal windows or tabs** at the repository root.
+
+**Terminal 1 — run the real Streamlit/TamperLab app:**
+
+```sh
+source .venv/bin/activate
+python -m streamlit run ui/app.py --server.address 127.0.0.1 --server.port 8501 --server.headless true --browser.gatherUsageStats false
+```
+
+**Terminal 2 — serve the local slide deck:**
+
+```sh
+python3 -m http.server 8000 --bind 127.0.0.1 --directory presentation
+```
+
+Open the presentation:
+
+```sh
+open http://127.0.0.1:8000/
+```
+
+Keep both terminals open during the presentation. Stop each server with
+`Control-C`. Install dependencies while online before relying on the setup
+offline. For optional macOS tests, run `python -m pip install -e ".[dev,ui]"`
+followed by `python -m pytest -q`.
+
+## Windows (PowerShell)
 
 From the repository root, install the optional UI extra if needed:
 
@@ -55,6 +99,38 @@ and the iframe is created on the first visit to position 4 and then retained.
 Moving away and back does not reset its URL or deliberately reload Streamlit.
 A browser refresh, closing the tab, loss of the Streamlit process, or browser
 resource management can still lose state. The shell never restarts the demo.
+
+## How the web deck integrates with TamperLab
+
+This is a **local presentation shell**, not another implementation of the
+security experiment:
+
+```text
+Browser: http://127.0.0.1:8000/           (presentation/index.html)
+  Slides 1, 2, 3, 5, 6                    -> PNGs in assets/slides/
+  Slide 4                                 -> persistent iframe:
+                                             http://127.0.0.1:8501/?embed=true
+                                            (ui/app.py, Streamlit)
+                                                |
+                                                v
+                                         tamperlog.experiment
+                                                |
+                                                v
+                                      experiment-results/ui-demo/
+```
+
+The deck displays actual experiment results from the existing Streamlit app.
+It does **not** reimplement logging, attacks, hashing, HMAC, checkpoints, or
+verification. Experiment outputs remain in `experiment-results/`, outside
+`presentation/`, the static HTTP server's document root. Never place private
+keys, trusted stores, or experiment results under `presentation/`.
+
+**Slide 4 focus:** after clicking Streamlit controls (including **Run
+Experiment**), arrow keys may no longer advance the slideshow because keyboard
+focus stays inside the iframe. Use **Next** in the bottom rail to reach Slide
+5, or click **Focus deck** and then press the right arrow. Returning to Slide
+4 retains the iframe in the same page session, but refreshes or process
+restarts may lose state. Use **Open Live Demo** if embedding fails.
 
 ## Controls
 
